@@ -23,10 +23,9 @@ enter /commandprefex_sendhere (default in config /pve_sendhere) in channel
 
 ### have fun!
     screenshots
-![image](https://github.com/JTNeXuS2/SoulMask.Tools/assets/88918931/f104d155-8f9b-4194-858f-1fb3bc412d9c)
-![image](https://github.com/JTNeXuS2/SoulMask.Tools/assets/88918931/7c28d40b-87fa-4fd6-b864-25c9134653fc)
-![image](https://github.com/JTNeXuS2/SoulMask.Tools/assets/88918931/fed61dd9-c627-4979-8f76-2d8f66305d06)
-![image](https://github.com/JTNeXuS2/SoulMask.Tools/assets/88918931/2ad7ed0f-cae3-4ce5-b806-78ef62b3b876)
+![image]([https://github.com/JTNeXuS2/SoulMask.Tools/assets/88918931/f104d155-8f9b-4194-858f-1fb3bc412d9c](https://cdn.discordapp.com/attachments/1006576170407579661/1324397851370852424/image.png?ex=6778011d&is=6776af9d&hm=d6ebf1723e72a910143a2d6e33d1d9869e37de84553bb2068cf5b5adb29e4a2b&))
+![image]([https://github.com/JTNeXuS2/SoulMask.Tools/assets/88918931/7c28d40b-87fa-4fd6-b864-25c9134653fc](https://cdn.discordapp.com/attachments/1006576170407579661/1324397919482286171/image.png?ex=6778012e&is=6776afae&hm=0fc7cdb297a2c1829e76581bfc2a7ef24cce58c63831aaf7f85e26a908d06a3c&))
+![image]([https://github.com/JTNeXuS2/SoulMask.Tools/assets/88918931/fed61dd9-c627-4979-8f76-2d8f66305d06](https://cdn.discordapp.com/attachments/1006576170407579661/1324398037107474483/image.png?ex=6778014a&is=6776afca&hm=e44a884eff2e6f5f7aabc29890c2d5c45ca74a75a9c4ebfffb48fddeb586cbf5&))
 
 #### additional infos
     if adding cutom ip and query port the bot will try to get information from a custom server
