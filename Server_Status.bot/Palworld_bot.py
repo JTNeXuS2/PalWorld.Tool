@@ -142,16 +142,22 @@ def process_line(line):
     # Проверка, соответствует ли строка формату сообщения чата
 
     chat_pattern = r'^\[\d{2}:\d{2}:\d{2}\] \[info\] \(chat\)\[(.+?)\]: (.+)$'
-    match = re.match(chat_pattern, line)
-    if match:
-        nick = match.group(1)  # Извлекаем ник из первой группы
-        message = match.group(2)  # Извлекаем сообщение из второй группы
+    chat = re.match(chat_pattern, line)
+    if chat:
+        nick = chat.group(1)  # Извлекаем ник из первой группы
+        message = chat.group(2)  # Извлекаем сообщение из второй группы
         if '/AdminPassword' in message:
             message = message.replace(f'{message}', '/AdminPassword Geted Admin Rights!!')
         #return nick, message
         send_to_discord(nick, message)
     else:
-        return None  # Возвращаем None, если строка не соответствует формату
+        # Обработка строки о входе
+        login_pattern = r'^\[\d{2}:\d{2}:\d{2}\] \[info\] \[.*?\] \[([0-9]+)\] (.+?) has logged (in|out)\.?$'
+        login = re.match(login_pattern, line)
+        if login:
+            message = f"[{login.group(1)}]: has logged {login.group(3)}."
+            send_to_discord(login.group(2), message)
+    return None
 
 def send_to_discord(nick, message):
     def escape_markdown(text):
