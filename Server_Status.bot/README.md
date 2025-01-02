@@ -24,7 +24,7 @@ enter /commandprefex_sendhere (default in config /pve_sendhere) in channel
 ### have fun!
     screenshots
 ![image](https://github.com/user-attachments/assets/c3cdfb97-2568-47d9-b47a-0a8c1cef6dc5)
-![image](https://github.com/user-attachments/assets/19cebcc2-0a21-4c06-b6e7-bf1600737e5c)
+![image](https://github.com/user-attachments/assets/6006815f-6e30-4b98-9952-f0f430c76fab)
 ![image](https://github.com/user-attachments/assets/27ba738e-6e9f-4d47-97e7-268337356392)
 
 #### additional infos
