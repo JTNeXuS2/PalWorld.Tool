@@ -10,16 +10,21 @@ and get token
 enable intents
 ![image](https://github.com/JTNeXuS2/SoulMask.Tools/assets/88918931/7b8b7f40-3129-4d96-bfe6-b0bea1d80422)
 #### Fill Config.ini
+      bot_name = PalWorld x2
       token = secret_token
       ip = server_ip
       query_port = server_query_port
+      restapi_port = server_restapi_port
+      password = RCON/ADMIN
       command_prefex = short command prefix
+      log_dir = path to palguard log
+      webhook_url = discord webhook
 launch !Start.cmd
 
 invate your bot to discord (open link in browser)
 ![image](https://github.com/JTNeXuS2/SoulMask.Tools/assets/88918931/4d904844-cc7f-4a60-8ddb-5910c2555e23)
 
-enter /commandprefex_sendhere (default in config /pve_sendhere) in channel
+enter /commandprefex_sendhere (default in config /pal_sendhere) in channel
 
 ### have fun!
     screenshots
