@@ -1,6 +1,8 @@
 #Python 3.8 or higher is required.
 #py -3 -m pip install -U disnake
 #pip3 install python-a2s
+#pip install aiofiles
+
 import disnake
 from disnake.ext import commands, tasks
 from disnake import Intents
@@ -23,7 +25,7 @@ import os
 import glob
 import subprocess
 import random
-import re
+
 #cant used
 prefix = '/'
 
@@ -441,45 +443,6 @@ async def players(ctx: disnake.ApplicationCommandInteraction):
         await ctx.response.send_message(content='❌ An error occurred. Please try again later.', ephemeral=True)
         print(f'Error occurred during fetching server info: {e}')
 
-
-    '''
-    lists = []
-    print(f'\n=== Players List ===')
-    for i, player in enumerate(players):
-        normal_time = datetime.datetime.utcfromtimestamp(player.duration).strftime('%H:%M:%S')
-        print(f"    {player.name}, Time: {normal_time}")
-        lists.append(f"\\({i+1}\\) **{player.name}** : {normal_time}")
-
-    def chunk_list(input_list, max_length):
-        chunks = []
-        current_chunk = ""
-        for item in input_list:
-            if len(current_chunk) + len(item) + 1 > max_length:
-                chunks.append(current_chunk)
-                current_chunk = item + "\n"
-            else:
-                current_chunk += item + "\n"
-        if current_chunk:
-            chunks.append(current_chunk)
-        return chunks
-
-    player_chunks = chunk_list(lists, 1020)
-
-    for i, chunk in enumerate(player_chunks):
-        addition_embed = disnake.Embed(
-            title=f"Players List {i+1}\nOnline	**{info.player_count}/{info.max_players}**",
-            colour=disnake.Colour.blurple()
-        )
-        addition_embed.add_field(name=f"Players	-	Online Time", value=chunk, inline=False)
-
-        try:
-            if i == 0:
-                await ctx.response.defer(ephemeral=True)
-            await ctx.send(embed=addition_embed, ephemeral=True)
-        except Exception as e:
-            await ctx.response.send_message(f'❌ Error sending player status. \nError:\n{e}', ephemeral=True)
-            print(f'Error occurred during sending player status: {e}')
-    '''
 try:
     bot.run(token)
 except disnake.errors.LoginFailure:
