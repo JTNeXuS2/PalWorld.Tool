@@ -3,6 +3,7 @@
 ### install
     py -3 -m pip install -U disnake
     pip3 install python-a2s
+    pip install aiofiles
 #### Create app
     https://discord.com/developers/applications/
 and get token
