@@ -16,7 +16,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import aiohttp
 import asyncio
-#import aiofiles  # Убедитесь, что у вас установлен aiofiles
+import aiofiles
 
 import time
 import os
@@ -24,7 +24,6 @@ import glob
 import subprocess
 import random
 import re
-
 #cant used
 prefix = '/'
 
@@ -81,6 +80,8 @@ address = None
 command_prefex = None
 webhook_url = None
 log_directory = None
+current_file = None
+file_position = 0
 update_settings()
 
 #bot idents
@@ -88,21 +89,6 @@ intents = disnake.Intents.default()
 intents = disnake.Intents().all()
 client = commands.Bot(command_prefix=prefix, intents=intents, case_insensitive=True)
 bot = commands.Bot(command_prefix=prefix, intents=intents, case_insensitive=True)
-
-async def fetch_data(session, url):
-    async with session.get(url, auth=aiohttp.BasicAuth(username, password)) as response:
-        if response.status == 200:
-            response_text = await response.text()
-            #print(f"Полученные данные: {response_text}")
-            try:
-                return json.loads(response_text)  # Попытка декодировать текст как JSON
-            except json.JSONDecodeError:
-                print("Ошибка декодирования JSON. Полученные данные не являются корректным JSON.")
-                return response_text
-        else:
-            print(f"Ошибка при запросе {url}: {response.status}")
-            return None
-
 
 def find_latest_file(log_directory):
     list_of_files = glob.glob(f'{log_directory}*')
@@ -114,28 +100,23 @@ def find_latest_file(log_directory):
     return latest_file
 
 async def watch_log_file(log_directory):
-    current_file = find_latest_file(log_directory)
-    file_position = os.path.getsize(current_file)
-    print(f"watch log start at {current_file}")
+    global current_file, file_position
     while True:
-        try:
-            new_file = find_latest_file(log_directory)
-            if new_file != current_file:
-                current_file = new_file
-                file_position = 0
-            with open(current_file, 'r', encoding='utf-8') as file:
-                file.seek(file_position)
-                lines = file.readlines()
-                file_position = file.tell()
+        new_file = find_latest_file(log_directory)
+        if new_file != current_file:
+            current_file = new_file
+            file_position = 0
+        
+        async with aiofiles.open(current_file, 'r', encoding='utf-8') as file:
+            await file.seek(file_position)
+            lines = await file.readlines()
+            file_position = await file.tell()
 
-            for line in lines:
-                process_line(line)
+        for line in lines:
+            process_line(line)  # Предполагается, что process_line тоже асинхронная
 
-        except Exception as e:
-            print(f"Error encountered: {e}")
-            await asyncio.sleep(5)
-            continue
         await asyncio.sleep(1)
+
 
 
 def process_line(line):
@@ -184,10 +165,21 @@ async def request_api(address):
         f"http://{address[0]}:{address[2]}/v1/api/settings",
         f"http://{address[0]}:{address[2]}/v1/api/metrics"
     ]
-    
     async with aiohttp.ClientSession() as session:
-        tasks = [fetch_data(session, url) for url in urls]
-        results = await asyncio.gather(*tasks)
+        results = []
+        for url in urls:
+            async with session.get(url, auth=aiohttp.BasicAuth(username, password)) as response:
+                if response.status == 200:
+                    response_text = await response.text()
+                    try:
+                        data = json.loads(response_text)  # Попытка декодировать текст как JSON
+                        results.append(data)
+                    except json.JSONDecodeError:
+                        print("Ошибка декодирования JSON. Полученные данные не являются корректным JSON.")
+                        results.append(response_text)
+                else:
+                    print(f"Ошибка при запросе {url}: {response.status}")
+                    results.append(None)
 
     info, players, settings, metrics = results
     return info, players, settings, metrics
@@ -256,28 +248,29 @@ async def update_avatar_if_needed(bot, bot_name, bot_ava):
 
 @tasks.loop(seconds=2)
 async def watch_logs():
+    global current_file, file_position
+    current_file = find_latest_file(log_directory)
+    file_position = os.path.getsize(current_file)
+    print(f"watch log start at {current_file}")
     await watch_log_file(log_directory)
-    
+
 @tasks.loop(seconds=int(update_time))
 async def update_status():
     try:
         info, players, settings, metrics = await get_info_restapi(address)
-
         player_count = metrics["currentplayernum"]
         max_players = metrics["maxplayernum"]
         activity = disnake.Game(name=f"Online:{player_count}/{max_players}")
         await bot.change_presence(status=disnake.Status.online, activity=activity)
-    
-        # Проверяем, совпадает ли имя бота
+
         if bot.user.name != bot_name:
             await bot.user.edit(username=bot_name)
 
         async def upd_msg():
             update_settings()
             uptime_seconds = metrics["uptime"]
-            hours = uptime_seconds // 3600
-            minutes = (uptime_seconds % 3600) // 60
-
+            hours = f"{uptime_seconds // 3600:02}"
+            minutes = f"{(uptime_seconds % 3600) // 60:02}"
             message = (
                 f":earth_africa:Direct Link: **{settings['PublicIP']}:{settings['PublicPort']}**\n"
                 f":map: Guid: **{info['worldguid']}**\n"
@@ -400,18 +393,56 @@ async def status(ctx: disnake.ApplicationCommandInteraction, ip: str = None, que
         print(f'Error occurred during fetching server info: {e}')
 
 @bot.slash_command(name=f'{command_prefex}_players', description="Request Players status")
-async def players(ctx: disnake.ApplicationCommandInteraction, ip: str = None, query: int = None):
-    if ip is None:
-        ip = address[0]
+async def players(ctx: disnake.ApplicationCommandInteraction):
+    ip = address[0]
+    rest = address[2]
     try:
-        if ip is not None and query is not None:
-            info, players, rules = await get_info((f"{ip}", int(query)))
-        else:
-            info, players, rules = await get_info(address)
+        info, players, settings, metrics = await request_api(address)
+        #print(json.dumps(players, indent=4, ensure_ascii=False))
+
+        index = "#"
+        name = "Name"
+        level = "Level"
+        ping = "Ping"
+        ip = "IP"
+        table_header = f"| {index:<3}| {name:<15}| {level:<5}| {ping:<4}| {ip:<17}|\n"
+
+        table_rows = ""
+
+        for index, player in enumerate(players['players'], start=1):
+            name = player['name']
+            level = player['level']
+            ping = round(player['ping'])
+            ip = player['ip']
+            table_rows += f"| {index:<3}| {name:<15}| {level:<5}| {ping:<4}| {ip:<17}|\n"
+
+        # Формируем сообщение с таблицей
+        full_table = f"```\n{table_header}{table_rows}```"
+
+        # Разделяем сообщение на части по 1500 символов
+        max_length = 1700
+        current_message = "```\n" + table_header  # Начинаем с заголовка
+
+        for row in table_rows.splitlines(keepends=True):  # Сохраняем переносы строк
+            if len(current_message) + len(row) > max_length:
+                # Если добавление строки превышает лимит, отправляем текущее сообщение
+                current_message += "```"  # Закрываем кодовый блок
+                await ctx.send(current_message, ephemeral=True)
+                current_message = "```\n" + table_header + row  # Начинаем новый блок с заголовком
+            else:
+                current_message += row  # Добавляем строку в текущее сообщение
+
+        # Отправляем оставшийся текст, если он есть
+        if current_message.strip() != "```\n" + table_header:
+            current_message += "```"  # Закрываем кодовый блок
+            await ctx.send(current_message, ephemeral=True)
+
     except Exception as e:
         await ctx.response.send_message(content='❌ An error occurred. Please try again later.', ephemeral=True)
         print(f'Error occurred during fetching server info: {e}')
 
+
+    '''
     lists = []
     print(f'\n=== Players List ===')
     for i, player in enumerate(players):
@@ -448,7 +479,7 @@ async def players(ctx: disnake.ApplicationCommandInteraction, ip: str = None, qu
         except Exception as e:
             await ctx.response.send_message(f'❌ Error sending player status. \nError:\n{e}', ephemeral=True)
             print(f'Error occurred during sending player status: {e}')
-
+    '''
 try:
     bot.run(token)
 except disnake.errors.LoginFailure:
