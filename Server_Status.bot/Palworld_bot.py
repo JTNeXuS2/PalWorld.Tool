@@ -1,8 +1,6 @@
 #Python 3.8 or higher is required.
 #py -3 -m pip install -U disnake
 #pip3 install python-a2s
-#pip install aiofiles
-
 import disnake
 from disnake.ext import commands, tasks
 from disnake import Intents
@@ -18,13 +16,14 @@ from concurrent.futures import ThreadPoolExecutor
 
 import aiohttp
 import asyncio
-import aiofiles
+#import aiofiles  # Убедитесь, что у вас установлен aiofiles
 
 import time
 import os
 import glob
 import subprocess
 import random
+import re
 
 #cant used
 prefix = '/'
@@ -101,6 +100,9 @@ def find_latest_file(log_directory):
     latest_file = max(filtered_files, key=os.path.getctime)
     return latest_file
 
+import asyncio
+import aiofiles
+
 async def watch_log_file(log_directory):
     global current_file, file_position
     while True:
@@ -138,7 +140,7 @@ def process_line(line):
         login_pattern = r'^\[\d{2}:\d{2}:\d{2}\] \[info\] \[.*?\] \[([0-9]+)\] (.+?) has logged (in|out)\.?$'
         login = re.match(login_pattern, line)
         if login:
-            message = f"[{login.group(1)}]: has logged {login.group(3)}."
+            message = f"[{login.group(1)}]: has logged **{login.group(3)}**."
             send_to_discord(login.group(2), message)
     return None
 
@@ -152,6 +154,8 @@ def send_to_discord(nick, message):
         return text if len(text) <= max_length else text[:max_length-3] + '...'
     nick = escape_markdown(nick)
     message = escape_markdown(message)
+    # Recovery BOLD **
+    message = message.replace(r'\*\*', '**')
     message = truncate_message(message)
     message = f"**{nick}**: {message}"
     data = {"content": message}
