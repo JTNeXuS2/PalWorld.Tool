@@ -411,7 +411,7 @@ async def players(ctx: disnake.ApplicationCommandInteraction):
         level = "Level"
         ping = "Ping"
         ip = "IP"
-        table_header = f"| {index:<3}| {name:<15}| {level:<5}| {ping:<4}| {ip:<17}|\n"
+        table_header = f"|{index:<2}| {name:<19}|{level:<5}| {ping:<4}| {ip:<16}|\n"
 
         table_rows = ""
 
@@ -420,7 +420,7 @@ async def players(ctx: disnake.ApplicationCommandInteraction):
             level = player['level']
             ping = round(player['ping'])
             ip = player['ip']
-            table_rows += f"| {index:<3}| {name:<15}| {level:<5}| {ping:<4}| {ip:<17}|\n"
+            table_rows += f"|{index:<2}| {name:<19}|{level:<5}| {ping:<4}| {ip:<16}|\n"
 
         # Формируем сообщение с таблицей
         full_table = f"```\n{table_header}{table_rows}```"
