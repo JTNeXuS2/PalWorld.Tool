@@ -1,3 +1,8 @@
+### Features
+    Server Status
+    CrossChat
+    Auto Announcements
+
 ### Requires
     Python 3.8 or higher is required.
 ### install
