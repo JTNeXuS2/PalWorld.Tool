@@ -24,6 +24,7 @@ import glob
 import subprocess
 import random
 import re
+import base64
 
 #cant used
 prefix = '/'
@@ -48,29 +49,32 @@ async def write_cfg(section, key, value):
     with open('config.ini', 'w', encoding='utf-8') as configfile:
         config.write(configfile)
 def update_settings():
-    global token, channel_id, message_id , update_time, bot_name, bot_ava, address, command_prefex, username, password, log_directory, webhook_url
+    global token, channel_id, crosschat_id, message_id, update_time, bot_name, bot_ava, address, command_prefex, username, password, log_directory, webhook_url
 
     config = read_cfg()
-
     if config:
         try:
-            token = config['botconfig']['token']
-            channel_id = config['botconfig']['channel_id']
-            message_id = config['botconfig']['message_id']
-            bot_name = config['botconfig']['bot_name']
-            bot_ava = config['botconfig']['bot_ava']
-            username = config['botconfig']['username']
-            password = config['botconfig']['password']
-            update_time = config['botconfig']['update_time']
-            command_prefex = config['botconfig']['command_prefex'].lower()
-            address = (f"{config['botconfig']['ip']}", int(config['botconfig']['query_port']), int(config['botconfig']['restapi_port']))
-            log_directory = config['botconfig']['log_dir']
-            webhook_url = config['botconfig']['webhook_url']
-        except KeyError as e:
-            print(f"Error: wrong lines in config file {e}")
+            token = config['botconfig'].get('token', None)
+            channel_id = config['botconfig'].get('channel_id', None)
+            crosschat_id = config['botconfig'].get('crosschat_id', None)
+            message_id = config['botconfig'].get('message_id', None)
+            bot_name = config['botconfig'].get('bot_name', None)
+            bot_ava = config['botconfig'].get('bot_ava', None)
+            username = config['botconfig'].get('username', None)
+            password = config['botconfig'].get('password', None)
+            update_time = config['botconfig'].get('update_time', None)
+            command_prefex = config['botconfig'].get('command_prefex', None) and config['botconfig'].get('command_prefex').lower()
+            address = (config['botconfig'].get('ip', None), int(config['botconfig'].get('query_port', 0)), int(config['botconfig'].get('restapi_port', 0)))
+            log_directory = config['botconfig'].get('log_dir', None)
+            webhook_url = config['botconfig'].get('webhook_url', None)
+        except ValueError as e:
+            print(f"Error: wrong value in config file {e}")
+        except Exception as e:
+            print(f"Error: {e}")
 
 token = None
 channel_id = None
+crosschat_id = None
 message_id = None
 bot_name = None
 bot_ava = None
@@ -171,10 +175,21 @@ async def request_api(address):
         f"http://{address[0]}:{address[2]}/v1/api/settings",
         f"http://{address[0]}:{address[2]}/v1/api/metrics"
     ]
+    
+    base64enc = f"{username}:{password}"
+    base64_bytes = base64.b64encode(base64enc.encode('utf-8'))
+    base64_string = base64_bytes.decode('utf-8')
+
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Basic {base64_string}'
+    }
     async with aiohttp.ClientSession() as session:
         results = []
         for url in urls:
-            async with session.get(url, auth=aiohttp.BasicAuth(username, password)) as response:
+            # async with session.post(url, headers=headers, data=payload) as response:
+            # async with session.get(url, auth=aiohttp.BasicAuth(username, password)) as response:
+            async with session.get(url, headers=headers) as response:
                 if response.status == 200:
                     response_text = await response.text()
                     try:
@@ -252,6 +267,34 @@ async def update_avatar_if_needed(bot, bot_name, bot_ava):
         except requests.exceptions.RequestException as e:
             print(f"Error fetching avatar: {e}")
 
+async def send_annonce(text):
+    send_url = f"http://{address[0]}:{address[2]}/v1/api/announce"
+    # Кодируем строку в Base64
+    base64enc = f"{username}:{password}"
+    base64_bytes = base64.b64encode(base64enc.encode('utf-8'))
+    base64_string = base64_bytes.decode('utf-8')
+    # Формируем заголовок
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Basic {base64_string}'
+    }
+    # Разбиваем текст на части длиной не более 127 символов
+    messages = [text[i:i + 127] for i in range(0, len(text), 127)]
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            for message in messages:
+                payload = json.dumps({"message": message})
+                async with session.post(send_url, headers=headers, data=payload) as response:
+                    if response.status != 200:
+                        print(f"Failed annonce status: code {response.status}")
+                        return response.status
+        #print("Annonce sent successfully.")
+        return True
+    except Exception as e:
+        print(f"Error sending message via REST API: {e}")
+        return False
+
 @tasks.loop(seconds=2)
 async def watch_logs():
     global current_file, file_position
@@ -314,6 +357,19 @@ async def on_ready():
     update_status.start()
     watch_logs.start()
 
+@bot.event
+async def on_message(message):
+    if message.author == client.user:		#отсеим свои сообщения
+        return;
+    if message.author.bot:
+        return;
+    if str(message.channel.id) != crosschat_id:
+        return
+    if message.content.startswith(''):
+        text = ''
+        text = f'{message.author.display_name}: {message.content}'
+        await send_annonce(text)
+
 #template admin commands
 '''
 @bot.slash_command(description="Add SteamID to Whitelist")
@@ -342,7 +398,7 @@ async def help(ctx):
 '''
 
 #commands
-@bot.slash_command(name=f'{command_prefex}_sendhere', description="Set this channel to announce")
+@bot.slash_command(name=f'{command_prefex}_sendhere', description="Set this channel to status")
 async def sendhere(ctx: disnake.ApplicationCommandInteraction):
     if ctx.author.guild_permissions.administrator:
         try:
@@ -363,8 +419,44 @@ async def sendhere(ctx: disnake.ApplicationCommandInteraction):
     else:
         await ctx.response.send_message(content='❌ You do not have permission to run this command.', ephemeral=True)
 
+@bot.slash_command(name=f'{command_prefex}_lookhere', description="Look this channel to crosschat")
+async def lookhere(ctx: disnake.ApplicationCommandInteraction):
+    if ctx.author.guild_permissions.administrator:
+        try:
+            guild = ctx.guild
+            print(f'New crosschat channel id - {ctx.channel.id}')
+            await write_cfg('botconfig', 'crosschat_id', str(ctx.channel.id))
+            channel = await guild.fetch_channel(ctx.channel.id)
+            await ctx.response.send_message(content=f'This channel id [**{channel}**] for crosschat', ephemeral=False)
+            update_settings()
+
+        except Exception as e:
+            await ctx.response.send_message(content='❌ An error occurred. Please try again later.', ephemeral=True)
+            print(f'Error occurred during file write: {e}')
+    else:
+        await ctx.response.send_message(content='❌ You do not have permission to run this command.', ephemeral=True)
+
+@bot.slash_command(name=f'{command_prefex}_annonce', description="Sent annonce to server")
+async def annonce(ctx: disnake.ApplicationCommandInteraction, text: str):
+    if ctx.user.guild_permissions.administrator:  # Используем ctx.user вместо ctx.author
+        if text.strip() == "":
+            await ctx.response.send_message(content='❌ Please type text to annonce', ephemeral=True)
+            return
+        try:
+            answer = await send_annonce(text)  # Предполагается, что send_annonce - это функция, которая отправляет объявление
+            #print(f'Annonce answer: {answer}')
+            if answer is True:
+                await ctx.response.send_message(content=':white_check_mark: Annonce OK', ephemeral=True)
+            else:
+                await ctx.response.send_message(content=f'❌ Error code {answer}: Annonce failed.', ephemeral=True)
+        except Exception as e:
+            await ctx.response.send_message(content='❌ Annonce an error occurred. Please try again later.', ephemeral=True)
+            print(f'Annonce failed: {e}')
+    else:
+        await ctx.response.send_message(content='❌ У вас нет прав для выполнения этой команды.', ephemeral=True)
 
 
+'''
 @bot.slash_command(name=f'{command_prefex}_status', description="Request Servers status")
 async def status(ctx: disnake.ApplicationCommandInteraction, ip: str = None, query: int = None):
     if ip is None:
@@ -397,6 +489,7 @@ async def status(ctx: disnake.ApplicationCommandInteraction, ip: str = None, que
     except Exception as e:
         await ctx.response.send_message(content='❌ An error occurred. Please try again later.', ephemeral=True)
         print(f'Error occurred during fetching server info: {e}')
+'''
 
 @bot.slash_command(name=f'{command_prefex}_players', description="Request Players status")
 async def players(ctx: disnake.ApplicationCommandInteraction):
@@ -411,7 +504,7 @@ async def players(ctx: disnake.ApplicationCommandInteraction):
         level = "Level"
         ping = "Ping"
         ip = "IP"
-        table_header = f"|{index:<2}| {name:<19}|{level:<5}| {ping:<4}| {ip:<16}|\n"
+        table_header = f"|{index:<2}|{name:<18}|{level:<5}|{ping:<4}|{ip:<16}|\n"
 
         table_rows = ""
 
@@ -420,7 +513,7 @@ async def players(ctx: disnake.ApplicationCommandInteraction):
             level = player['level']
             ping = round(player['ping'])
             ip = player['ip']
-            table_rows += f"|{index:<2}| {name:<19}|{level:<5}| {ping:<4}| {ip:<16}|\n"
+            table_rows += f"|{index:<2}|{name:<18}|{level:<5}|{ping:<4}|{ip:<16}|\n"
 
         # Формируем сообщение с таблицей
         full_table = f"```\n{table_header}{table_rows}```"
