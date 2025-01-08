@@ -9,6 +9,7 @@
     py -3 -m pip install -U disnake
     pip3 install python-a2s
     pip install aiofiles
+    enable rest_api on pal-server (add on startup -RESTAPIEnabled=True -RESTAPIPort=8216 -AdminPassword="RCON/ADMIN/API PASSWORD")
 #### Create app
     https://discord.com/developers/applications/
 and get token
