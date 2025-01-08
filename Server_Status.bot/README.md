@@ -1,8 +1,8 @@
 ### Features
-    Server Status
-    CrossChat
+    Server Status - {prefex}_sendhere
+    CrossChat - use once {prefex}_lookhere or anonim {prefex}_annonce
     Auto Announcements
-
+    List Players - {prefex}_players
 ### Requires
     Python 3.8 or higher is required.
 ### install
@@ -37,17 +37,6 @@ enter /commandprefex_sendhere (default in config /pal_sendhere) in channel
 ![image](https://github.com/user-attachments/assets/c3cdfb97-2568-47d9-b47a-0a8c1cef6dc5)
 ![image](https://github.com/user-attachments/assets/6006815f-6e30-4b98-9952-f0f430c76fab)
 ![image](https://github.com/user-attachments/assets/27ba738e-6e9f-4d47-97e7-268337356392)
-
-#### additional infos
-    if adding cutom ip and query port the bot will try to get information from a custom server
-    sintax /prefix_command ip:server_ip query:server_query-port
-    examples
-    /pve_players ip:65.109.109.73 query:17014
-    /pve_status ip:65.109.109.73 query:17014
-or manualy ctrl+c - ctrl+v
-![image](https://github.com/JTNeXuS2/SoulMask.Tools/assets/88918931/0ea532f8-5400-4e70-b1a8-b242a88223d1)
-
-
 
 
 
