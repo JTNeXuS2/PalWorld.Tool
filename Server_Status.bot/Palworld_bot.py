@@ -18,16 +18,14 @@ from concurrent.futures import ThreadPoolExecutor
 
 import aiohttp
 import asyncio
-#import aiofiles  # Убедитесь, что у вас установлен aiofiles
 
 import time
 import os
 import glob
 import subprocess
 import random
-import re
 import base64
-import unicodedata
+import aiofiles
 
 #cant used
 prefix = '/'
@@ -52,7 +50,7 @@ async def write_cfg(section, key, value):
     with open('config.ini', 'w', encoding='utf-8') as configfile:
         config.write(configfile)
 def update_settings():
-    global token, channel_id, crosschat_id, message_id, update_time, bot_name, bot_ava, address, command_prefex, username, password, log_directory, webhook_url
+    global token, channel_id, crosschat_id, message_id, update_time, bot_name, bot_ava, address, command_prefex, username, password, log_directory, webhook_url, annonce_time
 
     config = read_cfg()
     if config:
@@ -66,6 +64,7 @@ def update_settings():
             username = config['botconfig'].get('username', None)
             password = config['botconfig'].get('password', None)
             update_time = config['botconfig'].get('update_time', None)
+            annonce_time = config['botconfig'].get('annonce_time', None)
             command_prefex = config['botconfig'].get('command_prefex', None) and config['botconfig'].get('command_prefex').lower()
             address = (config['botconfig'].get('ip', None), int(config['botconfig'].get('query_port', 0)), int(config['botconfig'].get('restapi_port', 0)))
             log_directory = config['botconfig'].get('log_dir', None)
@@ -84,13 +83,21 @@ bot_ava = None
 username = None
 password = None
 update_time = 10
+annonce_time = 600
 address = None
 command_prefex = None
 webhook_url = None
 log_directory = None
 current_file = None
 file_position = 0
+current_index = 0
 update_settings()
+
+# Проверяем, существует ли файл
+annonce_file = 'annonces.txt'
+if not os.path.exists(annonce_file):
+    with open(annonce_file, 'w', encoding='utf-8') as f:
+        f.write('')
 
 #bot idents
 intents = disnake.Intents.default()
@@ -106,9 +113,6 @@ def find_latest_file(log_directory):
         return None  # Или можно вернуть другое значение, если файлов нет
     latest_file = max(filtered_files, key=os.path.getctime)
     return latest_file
-
-import asyncio
-import aiofiles
 
 async def watch_log_file(log_directory):
     global current_file, file_position
@@ -127,8 +131,6 @@ async def watch_log_file(log_directory):
             process_line(line)  # Предполагается, что process_line тоже асинхронная
 
         await asyncio.sleep(1)
-
-
 
 def process_line(line):
     # Проверка, соответствует ли строка формату сообщения чата
@@ -299,6 +301,21 @@ async def send_annonce(text):
         print(f"Error sending message via REST API: {e}")
         return False
 
+async def auto_annonces(current_index):
+    # Читаем содержимое файла
+    annonces_list = {}
+    with open(annonce_file, 'r', encoding='utf-8') as f:
+        for index, line in enumerate(f):
+            annonces_list[index] = line.strip()
+    if annonces_list:
+        text = annonces_list.get(current_index, '')
+        await send_annonce(text)
+        current_index += 1
+    # Проверяем, превышает ли current_index максимальный индекс
+    if current_index > len(annonces_list) - 1:
+        current_index = 0
+    return current_index
+
 @tasks.loop(seconds=2)
 async def watch_logs():
     global current_file, file_position
@@ -306,6 +323,11 @@ async def watch_logs():
     file_position = os.path.getsize(current_file)
     print(f"watch log start at {current_file}")
     await watch_log_file(log_directory)
+
+@tasks.loop(seconds=int(annonce_time))
+async def annonces():
+    global current_index
+    current_index = await auto_annonces(current_index)
 
 @tasks.loop(seconds=int(update_time))
 async def update_status():
@@ -360,6 +382,7 @@ async def on_ready():
         print(f'update_avatar ERROR >>: {e}')
     update_status.start()
     watch_logs.start()
+    annonces.start()
 
 @bot.event
 async def on_message(message):
