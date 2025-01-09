@@ -133,24 +133,33 @@ async def watch_log_file(log_directory):
         await asyncio.sleep(1)
 
 def process_line(line):
-    # Проверка, соответствует ли строка формату сообщения чата
+    # Паттерны для обработки строк
+    chat_pattern = r'^\[\d{2}:\d{2}:\d{2}\] \[info\] \[Chat::(.+?)\]\[\'(.+?)\' \((Steam|Xbox)=\d+\)\]: (.+)'
+    adm_chat_pattern = r'^\[\d{2}:\d{2}:\d{2}\] \[info\] \[Chat::(.+?)\]\[\'(.+?)\' \((Steam|Xbox)=\d+\)\]\[Admin\]: (.+)'
+    login_pattern = r'^\[\d{2}:\d{2}:\d{2}\] \[info\] \'(.+?)\' \((Steam|Xbox)=(\d+)\) has logged (in|out)\.?\s*$'
 
-    chat_pattern = r'^\[\d{2}:\d{2}:\d{2}\] \[info\] \(chat\)\[(.+?)\]: (.+)$'
-    chat = re.match(chat_pattern, line)
-    if chat:
-        nick = chat.group(1)  # Извлекаем ник из первой группы
-        message = chat.group(2)  # Извлекаем сообщение из второй группы
+    # Обработка сообщений чата и админских сообщений
+    chat_match = re.match(chat_pattern, line) or re.match(adm_chat_pattern, line)
+    if chat_match:
+        channel = chat_match.group(1)  # Извлекаем канал
+        nick = chat_match.group(2)      # Извлекаем ник
+        message = chat_match.group(4)   # Извлекаем сообщение
         if '/AdminPassword' in message:
-            message = message.replace(f'{message}', '/AdminPassword Geted Admin Rights!!')
-        #return nick, message
-        send_to_discord(nick, message)
-    else:
-        # Обработка строки о входе
-        login_pattern = r'^\[\d{2}:\d{2}:\d{2}\] \[info\] \[.*?\] \[([0-9]+)\] (.+?) has logged (in|out)\.?$'
-        login = re.match(login_pattern, line)
-        if login:
-            message = f"[{login.group(1)}]: has logged **{login.group(3)}**."
-            send_to_discord(login.group(2), message)
+            message = '/AdminPassword Geted Admin Rights!!'
+        send_to_discord(f"[{channel}] **{nick}**", message)
+        return
+
+    # Обработка строки о входе
+    login_match = re.match(login_pattern, line)
+    if login_match:
+        nick = login_match.group(1)      # Ник игрока
+        platform = login_match.group(2)   # Платформа (Steam или Xbox)
+        user_id = login_match.group(3)    # ID пользователя
+        action = login_match.group(4)      # Действие (вход или выход)
+        message = f"[{user_id}]: has logged **{action}**."
+        send_to_discord(f"**{nick}**", message)
+        return
+
     return None
 
 def send_to_discord(nick, message):
@@ -164,9 +173,10 @@ def send_to_discord(nick, message):
     nick = escape_markdown(nick)
     message = escape_markdown(message)
     # Recovery BOLD **
+    nick = nick.replace(r'\*\*', '**')
     message = message.replace(r'\*\*', '**')
     message = truncate_message(message)
-    message = f"**{nick}**: {message}"
+    message = f"{nick}: {message}"
     data = {"content": message}
     response = requests.post(webhook_url, json=data)
     if response.status_code != 204:
@@ -381,8 +391,8 @@ async def on_ready():
     except Exception as e:
         print(f'update_avatar ERROR >>: {e}')
     update_status.start()
-    watch_logs.start()
     annonces.start()
+    watch_logs.start()
 
 @bot.event
 async def on_message(message):
