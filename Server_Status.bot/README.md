@@ -1,7 +1,7 @@
 ### Features
     Server Status - {prefex}_sendhere
     CrossChat - use once {prefex}_lookhere or anonim {prefex}_annonce
-    Auto Announcements
+    Auto Announcements in annonces.txt 1 string = 1 annonce
     List Players - {prefex}_players
 ### Requires
     Python 3.8 or higher is required.
