@@ -1,6 +1,8 @@
 #Python 3.8 or higher is required.
 #py -3 -m pip install -U disnake
 #pip3 install python-a2s
+#pip install aiofiles
+
 import disnake
 from disnake.ext import commands, tasks
 from disnake import Intents
@@ -25,6 +27,7 @@ import subprocess
 import random
 import re
 import base64
+import unicodedata
 
 #cant used
 prefix = '/'
@@ -367,7 +370,10 @@ async def on_message(message):
         return
     if message.content.startswith(''):
         text = ''
-        text = f'{message.author.display_name}: {message.content}'
+        author_name = unicodedata.normalize('NFKD', message.author.global_name).encode('utf-8', 'ignore').decode("utf-8")
+        message_content = unicodedata.normalize('NFKD', message.content).encode('utf-8', 'ignore').decode("utf-8")
+        text = f'{author_name}: {message_content}'
+        #print(f"global_name: {message.author.global_name} text: {text}")
         await send_annonce(text)
 
 #template admin commands
