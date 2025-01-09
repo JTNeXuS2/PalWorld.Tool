@@ -281,6 +281,7 @@ async def send_annonce(text):
         'Content-Type': 'application/json',
         'Authorization': f'Basic {base64_string}'
     }
+    text = unicodedata.normalize('NFKD', text).encode('utf-8', 'ignore').decode("utf-8")
     # Разбиваем текст на части длиной не более 127 символов
     messages = [text[i:i + 127] for i in range(0, len(text), 127)]
     
@@ -370,9 +371,7 @@ async def on_message(message):
         return
     if message.content.startswith(''):
         text = ''
-        author_name = unicodedata.normalize('NFKD', message.author.global_name).encode('utf-8', 'ignore').decode("utf-8")
-        message_content = unicodedata.normalize('NFKD', message.content).encode('utf-8', 'ignore').decode("utf-8")
-        text = f'{author_name}: {message_content}'
+        text = f'{message.author.global_name}: { message.content}'
         #print(f"global_name: {message.author.global_name} text: {text}")
         await send_annonce(text)
 
