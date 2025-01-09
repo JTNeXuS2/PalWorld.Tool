@@ -521,8 +521,6 @@ async def status(ctx: disnake.ApplicationCommandInteraction, ip: str = None, que
 
 @bot.slash_command(name=f'{command_prefex}_players', description="Request Players status")
 async def players(ctx: disnake.ApplicationCommandInteraction):
-    ip = address[0]
-    rest = address[2]
     try:
         info, players, settings, metrics = await request_api(address)
         #print(json.dumps(players, indent=4, ensure_ascii=False))
@@ -530,18 +528,65 @@ async def players(ctx: disnake.ApplicationCommandInteraction):
         index = "#"
         name = "Name"
         level = "Level"
+        userId = "SteamID"
+        ping = "Ping"
+        table_header = f"|{index:<2}|{name:<18}|{level:<5}|{userId:<18}|{ping:<4}|\n"
+        table_rows = ""
+        for index, player in enumerate(players['players'], start=1):
+            name = player['name']
+            if not name.replace(" ", ""):
+                name = player.get('accountName', '')
+            level = player['level']
+            userId = player['userId'].replace("steam_", "")
+            ping = round(player['ping'])
+            table_rows += f"|{index:<2}|{name:<18}|{level:<5}|{userId:<18}|{ping:<4}|\n"
+
+        # Формируем сообщение с таблицей
+        full_table = f"```\n{table_header}{table_rows}```"
+
+        # Разделяем сообщение на части по 1500 символов
+        max_length = 1700
+        current_message = "```\n" + table_header  # Начинаем с заголовка
+
+        for row in table_rows.splitlines(keepends=True):  # Сохраняем переносы строк
+            if len(current_message) + len(row) > max_length:
+                # Если добавление строки превышает лимит, отправляем текущее сообщение
+                current_message += "```"  # Закрываем кодовый блок
+                await ctx.send(current_message, ephemeral=True)
+                current_message = "```\n" + table_header + row  # Начинаем новый блок с заголовком
+            else:
+                current_message += row  # Добавляем строку в текущее сообщение
+
+        # Отправляем оставшийся текст, если он есть
+        if current_message.strip() != "```\n" + table_header:
+            current_message += "```"  # Закрываем кодовый блок
+            await ctx.send(current_message, ephemeral=True)
+
+    except Exception as e:
+        await ctx.response.send_message(content='❌ An error occurred. Please try again later.', ephemeral=True)
+        print(f'Error occurred during fetching server info: {e}')
+
+@bot.slash_command(name=f'{command_prefex}_players_net', description="Request Players net status")
+async def players_net(ctx: disnake.ApplicationCommandInteraction):
+    try:
+        info, players, settings, metrics = await request_api(address)
+        #print(json.dumps(players, indent=4, ensure_ascii=False))
+
+        index = "#"
+        name = "Name"
         ping = "Ping"
         ip = "IP"
-        table_header = f"|{index:<2}|{name:<18}|{level:<5}|{ping:<4}|{ip:<16}|\n"
+        table_header = f"|{index:<2}|{name:<18}|{ping:<4}|{ip:<16}|\n"
 
         table_rows = ""
 
         for index, player in enumerate(players['players'], start=1):
             name = player['name']
-            level = player['level']
+            if not name.replace(" ", ""):
+                name = player.get('accountName', '')
             ping = round(player['ping'])
             ip = player['ip']
-            table_rows += f"|{index:<2}|{name:<18}|{level:<5}|{ping:<4}|{ip:<16}|\n"
+            table_rows += f"|{index:<2}|{name:<18}|{ping:<4}|{ip:<16}|\n"
 
         # Формируем сообщение с таблицей
         full_table = f"```\n{table_header}{table_rows}```"
