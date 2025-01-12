@@ -1,6 +1,8 @@
 @echo off
 
 py -3 -m pip install -U disnake
-python -m pip install -U matplotlib
-
+pip install -U matplotlib
+pip3 install python-a2s
+pip install aiofiles
+pip install requests
 timeout /t 5
