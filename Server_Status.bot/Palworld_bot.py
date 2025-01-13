@@ -120,8 +120,9 @@ async def watch_log_file(log_directory):
         new_file = find_latest_file(log_directory)
         if new_file != current_file:
             current_file = new_file
+            print(f"watch log start at {current_file}")
             file_position = 0
-        
+
         async with aiofiles.open(current_file, 'r', encoding='utf-8') as file:
             await file.seek(file_position)
             lines = await file.readlines()
