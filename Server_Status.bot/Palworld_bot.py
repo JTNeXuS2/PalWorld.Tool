@@ -161,6 +161,9 @@ def process_line(line):
         send_to_discord(f"**{nick}**", message)
         return
 
+    if "*may be* a cheater" in line:
+        send_to_discord(f"**[WARN] may be a cheater!**", f"```{line}```")
+        return
     return None
 
 def send_to_discord(nick, message):
@@ -176,6 +179,7 @@ def send_to_discord(nick, message):
     # Recovery BOLD **
     nick = nick.replace(r'\*\*', '**')
     message = message.replace(r'\*\*', '**')
+    message = message.replace(r'\`\`\`', '```')
     message = truncate_message(message)
     message = f"{nick}: {message}"
     data = {"content": message}
