@@ -49,7 +49,7 @@ async def write_cfg(section, key, value):
     with open('config.ini', 'w', encoding='utf-8') as configfile:
         config.write(configfile)
 def update_settings():
-    global token, channel_id, crosschat_id, message_id, update_time, bot_name, bot_ava, address, command_prefex, username, password, log_directory, webhook_url, annonce_time, ch_list, cmd_list, cheaters, hide_personal_data
+    global token, channel_id, crosschat_id, message_id, update_time, bot_name, bot_ava, address, command_prefex, username, password, log_directory, webhook_url, annonce_time, ch_list, cmd_list, cheaters, hide_personal_data, death_send
 
     config = read_cfg()
     if config:
@@ -72,6 +72,7 @@ def update_settings():
             cmd_list = config['botconfig'].get('cmd_list', '/, /TeleportToMe').split(', ')
             cheaters = config['botconfig'].getboolean('cheaters', True)
             hide_personal_data = config['botconfig'].getboolean('hide_personal_data', True)
+            death_send = config['botconfig'].getboolean('death_send', True)
 
         except ValueError as e:
             print(f"Error: wrong value in config file {e}")
@@ -100,7 +101,7 @@ ch_list = []
 cmd_list = []
 cheaters = True
 hide_personal_data = True
-
+death_send = True
 update_settings()
 
 annonce_file = 'annonces.txt'
@@ -146,6 +147,7 @@ def process_line(line):
     # Parse log string
     chat_pattern = r"\[(.*?)\] \[info\] \[Chat::([^]]+)\]\['([^']+)' \(([^)]+)\)\](\[Admin\])?: (.+)"
     login_pattern = r"^\[(.*?)\] \[info\] \'(.+?)\' \((.*?)\) has logged (in|out)\.?\s*$"
+    death_pattern = r"\[(.*?)\] \[info\] '([^']+)' \(([^)]+)\) was attacked by a wild '([^']+)' \(([^)]+)\) and died."
 
     # Parse Cheater
     if cheaters and "*may be* a cheater" in line:
@@ -218,6 +220,33 @@ def process_line(line):
         else:
             message = f"[{platform_id}]: has logged **{action}**."
         send_to_discord(f"**{nick}**", message)
+
+    # Parse death
+    death_match = re.match(death_pattern, line)
+    if death_send and death_match:
+        timestamp = death_match.group(1)
+        nick = death_match.group(2)
+        platform_info = death_match.group(3)
+        enemy = death_match.group(4)
+        weapon = death_match.group(5)
+        platform_id = None
+        ip = None
+        uid = None
+        platform_parts = platform_info.split(',')
+        
+        for part in platform_parts:
+            key_value = part.split('=')
+            if len(key_value) > 1:
+                key = key_value[0].strip()
+                value = key_value[1].strip()
+                if key.startswith('Steam') or key.startswith('Xbox') or key.startswith('Mac'):
+                    platform_id = value
+                elif key == 'IP':
+                    ip = value
+                elif key == 'UID':
+                    uid = value
+        # send to webhook
+        send_to_discord(f"**{nick}**", f"was attacked by a wild **{enemy}**:{weapon} and died.")
     # END PARSE
     return None
 
