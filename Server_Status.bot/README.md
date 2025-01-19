@@ -29,6 +29,13 @@ enable intents
       command_prefex = short command prefix
       log_dir = path to palguard log
       webhook_url = discord webhook
+      channel_id, message_id = use pal_sendhere in discord
+      crosschat_id = use pal_lookhere in discord
+      ch_list = list chanels to send in the webhook
+      cmd_list = list comands  or prefex to hide in the webhook
+      cheaters = send cheater warn in webhook
+      hide_personal_data = hide platform id in webhook
+
 launch !Start.cmd
 
 invate your bot to discord (open link in browser)
