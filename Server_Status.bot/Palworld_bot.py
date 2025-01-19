@@ -18,7 +18,6 @@ from concurrent.futures import ThreadPoolExecutor
 
 import aiohttp
 import asyncio
-
 import time
 import os
 import glob
@@ -50,7 +49,7 @@ async def write_cfg(section, key, value):
     with open('config.ini', 'w', encoding='utf-8') as configfile:
         config.write(configfile)
 def update_settings():
-    global token, channel_id, crosschat_id, message_id, update_time, bot_name, bot_ava, address, command_prefex, username, password, log_directory, webhook_url, annonce_time
+    global token, channel_id, crosschat_id, message_id, update_time, bot_name, bot_ava, address, command_prefex, username, password, log_directory, webhook_url, annonce_time, ch_list, cmd_list, cheaters
 
     config = read_cfg()
     if config:
@@ -69,6 +68,11 @@ def update_settings():
             address = (config['botconfig'].get('ip', None), int(config['botconfig'].get('query_port', 0)), int(config['botconfig'].get('restapi_port', 0)))
             log_directory = config['botconfig'].get('log_dir', None)
             webhook_url = config['botconfig'].get('webhook_url', None)
+            ch_list = config['botconfig'].get('ch_list', 'Global, Local, Guild').split(', ')
+            cmd_list = config['botconfig'].get('cmd_list', '/, /TeleportToMe').split(', ')
+            cheaters = config['botconfig'].getboolean('cheaters', True)
+            hide_personal_data = config['botconfig'].getboolean('hide_personal_data', True)
+
         except ValueError as e:
             print(f"Error: wrong value in config file {e}")
         except Exception as e:
@@ -91,9 +95,14 @@ log_directory = None
 current_file = None
 file_position = 0
 current_index = 0
+useonce = None
+ch_list = []
+cmd_list = []
+cheaters = True
+hide_personal_data = True
+
 update_settings()
 
-# Проверяем, существует ли файл
 annonce_file = 'annonces.txt'
 if not os.path.exists(annonce_file):
     with open(annonce_file, 'w', encoding='utf-8') as f:
@@ -134,36 +143,82 @@ async def watch_log_file(log_directory):
         await asyncio.sleep(1)
 
 def process_line(line):
-    # Паттерны для обработки строк
-    chat_pattern = r'^\[\d{2}:\d{2}:\d{2}\] \[info\] \[Chat::(.+?)\]\[\'(.+?)\' \((Steam|Xbox)=\d+\)\]: (.+)'
-    adm_chat_pattern = r'^\[\d{2}:\d{2}:\d{2}\] \[info\] \[Chat::(.+?)\]\[\'(.+?)\' \((Steam|Xbox)=\d+\)\]\[Admin\]: (.+)'
-    login_pattern = r'^\[\d{2}:\d{2}:\d{2}\] \[info\] \'(.+?)\' \((Steam|Xbox)=(\d+)\) has logged (in|out)\.?\s*$'
+    # Parse log string
+    chat_pattern = r"\[(.*?)\] \[info\] \[Chat::([^]]+)\]\['([^']+)' \(([^)]+)\)\](\[Admin\])?: (.+)"
+    login_pattern = r"^\[(.*?)\] \[info\] \'(.+?)\' \((.*?)\) has logged (in|out)\.?\s*$"
 
-    # Обработка сообщений чата и админских сообщений
-    chat_match = re.match(chat_pattern, line) or re.match(adm_chat_pattern, line)
-    if chat_match:
-        channel = chat_match.group(1)  # Извлекаем канал
-        nick = chat_match.group(2)      # Извлекаем ник
-        message = chat_match.group(4)   # Извлекаем сообщение
-        if '/AdminPassword' in message:
-            message = '/AdminPassword Geted Admin Rights!!'
-        send_to_discord(f"[{channel}] **{nick}**", message)
-        return
-
-    # Обработка строки о входе
-    login_match = re.match(login_pattern, line)
-    if login_match:
-        nick = login_match.group(1)      # Ник игрока
-        platform = login_match.group(2)   # Платформа (Steam или Xbox)
-        user_id = login_match.group(3)    # ID пользователя
-        action = login_match.group(4)      # Действие (вход или выход)
-        message = f"[{user_id}]: has logged **{action}**."
-        send_to_discord(f"**{nick}**", message)
-        return
-
-    if "*may be* a cheater" in line:
+    # Parse Cheater
+    if cheaters and "*may be* a cheater" in line:
         send_to_discord(f"**[WARN] may be a cheater!**", f"```{line}```")
         return
+
+    # Parse Chat
+    chat_match = re.match(chat_pattern, line)
+    if chat_match:
+        timestamp = chat_match.group(1)
+        channel = chat_match.group(2)
+        nick = chat_match.group(3)
+        platform_info = chat_match.group(4)
+        is_admin = chat_match.group(5)
+        message = chat_match.group(6)
+        # Dont parse channels not from the list
+        ch_list = ['Global', 'Local', 'Guild']
+        if channel and channel.lower() not in [ch.lower() for ch in ch_list]:
+            return
+        # Dont parse commands from the list or messages starting with prefix /
+        if message and any(message.lower().startswith(cmd.lower()) for cmd in cmd_list):
+            return
+        # HIDE ADMIN PASS
+        if message and '/adminpassword' in message.lower():
+            message = '/AdminPassword Geted Admin Rights!!'
+        # Извлечение платформы и идентификатора
+        platform_id = None
+        ip = None
+        uid = None
+        platform_parts = platform_info.split(',')
+        for part in platform_parts:
+            key_value = part.split('=')
+            if len(key_value) > 1:
+                key = key_value[0].strip()
+                value = key_value[1].strip()
+                if key.startswith('Steam') or key.startswith('Xbox') or key.startswith('Mac'):
+                    platform_id = value
+                elif key == 'IP':
+                    ip = value
+                elif key == 'UID':
+                    uid = value
+        # send to webhook
+        send_to_discord(f"[{channel}] **{nick}**", message)
+
+    # Parse Log(in/out)
+    login_match = re.match(login_pattern, line)
+    if login_match:
+        timestamp = login_match.group(1)
+        nick = login_match.group(2)
+        platform_info = login_match.group(3)
+        action = login_match.group(4)
+        platform_id = None
+        ip = None
+        uid = None
+        platform_parts = platform_info.split(',')
+        for part in platform_parts:
+            key_value = part.split('=')
+            if len(key_value) > 1:
+                key = key_value[0].strip()
+                value = key_value[1].strip()
+                if key.startswith('Steam') or key.startswith('Xbox') or key.startswith('Mac') or key == 'Любая платформа':
+                    platform_id = value
+                elif key == 'IP':
+                    ip = value
+                elif key == 'UID':
+                    uid = value
+        # send to webhook
+        if hide_personal_data:
+            message = f"has logged **{action}**."
+        else:
+            message = f"[{platform_id}]: has logged **{action}**."
+        send_to_discord(f"**{nick}**", message)
+    # END PARSE
     return None
 
 def send_to_discord(nick, message):
@@ -317,16 +372,19 @@ async def send_annonce(text):
         return False
 
 async def auto_annonces(current_index):
-    # Читаем содержимое файла
+    global useonce
     annonces_list = {}
     with open(annonce_file, 'r', encoding='utf-8') as f:
         for index, line in enumerate(f):
             annonces_list[index] = line.strip()
+    if not useonce:
+        current_index = random.randint(0, len(annonces_list) - 1)
+        useonce  = 1
     if annonces_list:
         text = annonces_list.get(current_index, '')
+        print(f'Annonsing: {text}')
         await send_annonce(text)
         current_index += 1
-    # Проверяем, превышает ли current_index максимальный индекс
     if current_index > len(annonces_list) - 1:
         current_index = 0
     return current_index
@@ -481,7 +539,7 @@ async def lookhere(ctx: disnake.ApplicationCommandInteraction):
 
 @bot.slash_command(name=f'{command_prefex}_annonce', description="Sent annonce to server")
 async def annonce(ctx: disnake.ApplicationCommandInteraction, text: str):
-    if ctx.user.guild_permissions.administrator:  # Используем ctx.user вместо ctx.author
+    if ctx.user.guild_permissions.administrator:
         if text.strip() == "":
             await ctx.response.send_message(content='❌ Please type text to annonce', ephemeral=True)
             return
@@ -496,7 +554,7 @@ async def annonce(ctx: disnake.ApplicationCommandInteraction, text: str):
             await ctx.response.send_message(content='❌ Annonce an error occurred. Please try again later.', ephemeral=True)
             print(f'Annonce failed: {e}')
     else:
-        await ctx.response.send_message(content='❌ У вас нет прав для выполнения этой команды.', ephemeral=True)
+        await ctx.response.send_message(content='❌ You do not have permission to run this command.', ephemeral=True)
 
 
 '''
@@ -583,50 +641,43 @@ async def players(ctx: disnake.ApplicationCommandInteraction):
 
 @bot.slash_command(name=f'{command_prefex}_players_net', description="Request Players net status")
 async def players_net(ctx: disnake.ApplicationCommandInteraction):
-    try:
-        info, players, settings, metrics = await request_api(address)
-        #print(json.dumps(players, indent=4, ensure_ascii=False))
+    if ctx.user.guild_permissions.administrator:
+        try:
+            info, players, settings, metrics = await request_api(address)
+            index = "#"
+            name = "Name"
+            ping = "Ping"
+            ip = "IP"
+            table_header = f"|{index:<2}|{name:<18}|{ping:<4}|{ip:<16}|\n"
+            table_rows = ""
+            for index, player in enumerate(players['players'], start=1):
+                name = player['name']
+                if not name.replace(" ", ""):
+                    name = player.get('accountName', '')
+                ping = round(player['ping'])
+                ip = player['ip']
+                table_rows += f"|{index:<2}|{name:<18}|{ping:<4}|{ip:<16}|\n"
+            # Формируем сообщение с таблицей
+            full_table = f"```\n{table_header}{table_rows}```"
 
-        index = "#"
-        name = "Name"
-        ping = "Ping"
-        ip = "IP"
-        table_header = f"|{index:<2}|{name:<18}|{ping:<4}|{ip:<16}|\n"
-
-        table_rows = ""
-
-        for index, player in enumerate(players['players'], start=1):
-            name = player['name']
-            if not name.replace(" ", ""):
-                name = player.get('accountName', '')
-            ping = round(player['ping'])
-            ip = player['ip']
-            table_rows += f"|{index:<2}|{name:<18}|{ping:<4}|{ip:<16}|\n"
-
-        # Формируем сообщение с таблицей
-        full_table = f"```\n{table_header}{table_rows}```"
-
-        # Разделяем сообщение на части по 1500 символов
-        max_length = 1700
-        current_message = "```\n" + table_header  # Начинаем с заголовка
-
-        for row in table_rows.splitlines(keepends=True):  # Сохраняем переносы строк
-            if len(current_message) + len(row) > max_length:
-                # Если добавление строки превышает лимит, отправляем текущее сообщение
-                current_message += "```"  # Закрываем кодовый блок
+            # Разделяем сообщение на части по 1700 символов
+            max_length = 1700
+            current_message = "```\n" + table_header
+            for row in table_rows.splitlines(keepends=True):
+                if len(current_message) + len(row) > max_length:
+                    current_message += "```"
+                    await ctx.send(current_message, ephemeral=True)
+                    current_message = "```\n" + table_header + row
+                else:
+                    current_message += row
+            if current_message.strip() != "```\n" + table_header:
+                current_message += "```"
                 await ctx.send(current_message, ephemeral=True)
-                current_message = "```\n" + table_header + row  # Начинаем новый блок с заголовком
-            else:
-                current_message += row  # Добавляем строку в текущее сообщение
-
-        # Отправляем оставшийся текст, если он есть
-        if current_message.strip() != "```\n" + table_header:
-            current_message += "```"  # Закрываем кодовый блок
-            await ctx.send(current_message, ephemeral=True)
-
-    except Exception as e:
-        await ctx.response.send_message(content='❌ An error occurred. Please try again later.', ephemeral=True)
-        print(f'Error occurred during fetching server info: {e}')
+        except Exception as e:
+            await ctx.response.send_message(content='❌ An error occurred. Please try again later.', ephemeral=True)
+            print(f'Error occurred during fetching server info: {e}')
+    else:
+        await ctx.response.send_message(content='❌ You do not have permission to run this command.', ephemeral=True)
 
 try:
     bot.run(token)
