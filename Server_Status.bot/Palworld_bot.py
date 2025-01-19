@@ -192,7 +192,6 @@ def process_line(line):
         is_admin = chat_match.group(5)
         message = chat_match.group(6)
         # Dont parse channels not from the list
-        ch_list = ['Global', 'Local', 'Guild']
         if channel and channel.lower() not in [ch.lower() for ch in ch_list]:
             return
         # Dont parse commands from the list or messages starting with prefix /
