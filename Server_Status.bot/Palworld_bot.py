@@ -459,7 +459,7 @@ async def watch_logs():
 @tasks.loop(seconds=2)
 async def watch_cheat_logs():
     global cheat_current_file, cheat_file_position
-    cheat_current_file = find_latest_file(cheat_log_directory)
+    cheat_current_file = find_latest_cheat_file(cheat_log_directory)
     cheat_file_position = os.path.getsize(cheat_current_file)
     print(f"watch cheat_log start at {cheat_current_file}")
     await watch_cheat_log_file(cheat_log_directory)
