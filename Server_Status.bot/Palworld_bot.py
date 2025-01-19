@@ -49,7 +49,7 @@ async def write_cfg(section, key, value):
     with open('config.ini', 'w', encoding='utf-8') as configfile:
         config.write(configfile)
 def update_settings():
-    global token, channel_id, crosschat_id, message_id, update_time, bot_name, bot_ava, address, command_prefex, username, password, log_directory, webhook_url, annonce_time, ch_list, cmd_list, cheaters, hide_personal_data, death_send
+    global token, channel_id, crosschat_id, message_id, update_time, bot_name, bot_ava, address, command_prefex, username, password, log_directory, cheat_log_directory, webhook_url, annonce_time, ch_list, cmd_list, cheaters, hide_personal_data, death_send
 
     config = read_cfg()
     if config:
@@ -67,6 +67,7 @@ def update_settings():
             command_prefex = config['botconfig'].get('command_prefex', None) and config['botconfig'].get('command_prefex').lower()
             address = (config['botconfig'].get('ip', None), int(config['botconfig'].get('query_port', 0)), int(config['botconfig'].get('restapi_port', 0)))
             log_directory = config['botconfig'].get('log_dir', None)
+            cheat_log_directory = os.path.join(log_directory, "Cheats/")
             webhook_url = config['botconfig'].get('webhook_url', None)
             ch_list = config['botconfig'].get('ch_list', 'Global, Local, Guild').split(', ')
             cmd_list = config['botconfig'].get('cmd_list', '/, /TeleportToMe').split(', ')
@@ -93,9 +94,12 @@ address = None
 command_prefex = None
 webhook_url = None
 log_directory = None
+cheat_log_directory = None
 current_file = None
 file_position = 0
 current_index = 0
+cheat_current_file = None
+cheat_file_position = 0
 useonce = None
 ch_list = []
 cmd_list = []
@@ -120,7 +124,7 @@ def find_latest_file(log_directory):
     # Фильтруем список, исключая файлы, имена которых содержат '-cheats'
     filtered_files = [file for file in list_of_files if '-cheats' not in os.path.basename(file)]
     if not filtered_files:
-        return None  # Или можно вернуть другое значение, если файлов нет
+        return None
     latest_file = max(filtered_files, key=os.path.getctime)
     return latest_file
 
@@ -132,11 +136,35 @@ async def watch_log_file(log_directory):
             current_file = new_file
             print(f"watch log start at {current_file}")
             file_position = 0
-
         async with aiofiles.open(current_file, 'r', encoding='utf-8') as file:
             await file.seek(file_position)
             lines = await file.readlines()
             file_position = await file.tell()
+        for line in lines:
+            process_line(line)  # Предполагается, что process_line тоже асинхронная
+        await asyncio.sleep(1)
+
+def find_latest_cheat_file(cheat_log_directory):
+    list_of_files = glob.glob(f'{cheat_log_directory}*')
+    filtered_files = [file for file in list_of_files if '-cheats_DISABLE' not in os.path.basename(file)]
+    if not filtered_files:
+        return None
+    latest_file = max(filtered_files, key=os.path.getctime)
+    return latest_file
+
+async def watch_cheat_log_file(cheat_log_directory):
+    global cheat_current_file, cheat_file_position
+    while True:
+        new_file = find_latest_cheat_file(cheat_log_directory)
+        if new_file != cheat_current_file:
+            cheat_current_file = new_file
+            print(f"watch cheat_log start at {cheat_current_file}")
+            cheat_file_position = 0
+
+        async with aiofiles.open(cheat_current_file, 'r', encoding='utf-8') as file:
+            await file.seek(cheat_file_position)
+            lines = await file.readlines()
+            cheat_file_position = await file.tell()
 
         for line in lines:
             process_line(line)  # Предполагается, что process_line тоже асинхронная
@@ -150,7 +178,7 @@ def process_line(line):
     death_pattern = r"\[(.*?)\] \[info\] '([^']+)' \(([^)]+)\) was attacked by a wild '([^']+)' \(([^)]+)\) and died."
 
     # Parse Cheater
-    if cheaters and "*may be* a cheater" in line:
+    if cheaters and ("*may be* a cheater" in line or "is a cheater! Reason:" in line):
         send_to_discord(f"**[WARN] may be a cheater!**", f"```{line}```")
         return
 
@@ -407,8 +435,10 @@ async def auto_annonces(current_index):
         for index, line in enumerate(f):
             annonces_list[index] = line.strip()
     if not useonce:
-        current_index = random.randint(0, len(annonces_list) - 1)
-        useonce  = 1
+        if annonces_list:  # Проверяем, что annonces_list не пустой
+            current_index = random.randint(0, len(annonces_list) - 1)
+            useonce = 1
+        pass
     if annonces_list:
         text = annonces_list.get(current_index, '')
         print(f'Annonsing: {text}')
@@ -425,6 +455,14 @@ async def watch_logs():
     file_position = os.path.getsize(current_file)
     print(f"watch log start at {current_file}")
     await watch_log_file(log_directory)
+
+@tasks.loop(seconds=2)
+async def watch_cheat_logs():
+    global cheat_current_file, cheat_file_position
+    cheat_current_file = find_latest_file(cheat_log_directory)
+    cheat_file_position = os.path.getsize(cheat_current_file)
+    print(f"watch cheat_log start at {cheat_current_file}")
+    await watch_cheat_log_file(cheat_log_directory)
 
 @tasks.loop(seconds=int(annonce_time))
 async def annonces():
@@ -485,6 +523,7 @@ async def on_ready():
     update_status.start()
     annonces.start()
     watch_logs.start()
+    watch_cheat_logs.start()
 
 @bot.event
 async def on_message(message):
