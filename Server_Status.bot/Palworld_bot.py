@@ -450,18 +450,26 @@ async def auto_annonces(current_index):
 @tasks.loop(seconds=2)
 async def watch_logs():
     global current_file, file_position
-    current_file = find_latest_file(log_directory)
-    file_position = os.path.getsize(current_file)
-    print(f"watch log start at {current_file}")
-    await watch_log_file(log_directory)
+    try:
+        current_file = find_latest_file(log_directory)
+        if current_file:
+            file_position = os.path.getsize(current_file)
+            print(f"watch log start at {current_file}")
+            await watch_log_file(log_directory)
+    except Exception as e:
+        print(f'watch log ERROR >>: {e}')
 
 @tasks.loop(seconds=2)
 async def watch_cheat_logs():
     global cheat_current_file, cheat_file_position
-    cheat_current_file = find_latest_cheat_file(cheat_log_directory)
-    cheat_file_position = os.path.getsize(cheat_current_file)
-    print(f"watch cheat_log start at {cheat_current_file}")
-    await watch_cheat_log_file(cheat_log_directory)
+    try:
+        cheat_current_file = find_latest_cheat_file(cheat_log_directory)
+        if cheat_current_file:
+            cheat_file_position = os.path.getsize(cheat_current_file)
+            print(f"watch cheat_log start at {cheat_current_file}")
+            await watch_cheat_log_file(cheat_log_directory)
+    except Exception as e:
+        print(f'watch cheat_log ERROR >>: {e}')
 
 @tasks.loop(seconds=int(annonce_time))
 async def annonces():
