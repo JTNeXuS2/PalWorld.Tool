@@ -13,6 +13,13 @@
     pip install requests
     
     enable rest_api on pal-server (add on startup -RESTAPIEnabled=True -RESTAPIPort=8216 -AdminPassword="RCON/ADMIN/API PASSWORD")
+
+    enable logs in serverfiles\Pal\Binaries\Win64\PalDefender\Config.json or old config palguard\palguard.json
+    "logChat": true,
+    "logPlayerDeaths": true,
+    "logPlayerIP": true,
+    "logPlayerLogins": true,
+    "logPlayerUID": true,
 #### Create app
     https://discord.com/developers/applications/
 and get token
