@@ -493,6 +493,15 @@ async def update_status():
                 f":asterisk: Day: **{metrics['days']}**\n"
                 f":timer: UpTime: **{hours}:{minutes}**\n"
                 f":newspaper: Ver: **{info['version']}**\n"
+                f"============ Server Settings ============\n"
+                f"PVP:      **{settings['bIsPvP']}**\n"
+                f"HardCore: **{settings['bHardcore']}**\n"
+                f"Exp Rate: **{settings['ExpRate']}**\n"
+                f"Drop Loot: **{settings['DeathPenalty']}**\n"
+                f"Lost Pal: **{settings['bPalLost']}**\n"
+                f"Decay Camps: **{settings['AutoResetGuildTimeNoOnlinePlayers']}h**\n"
+                f"Base Camps: **{settings['BaseCampMaxNumInGuild']}**\n"
+                f"Invaders: **{settings['bEnableInvaderEnemy']}**\n"
             )
             addition_embed = disnake.Embed(
                 title=f"**{info['servername']}**",
