@@ -121,7 +121,6 @@ bot = commands.Bot(command_prefix=prefix, intents=intents, case_insensitive=True
 
 def find_latest_file(log_directory):
     list_of_files = glob.glob(f'{log_directory}*')
-    # Фильтруем список, исключая файлы, имена которых содержат '-cheats'
     filtered_files = [file for file in list_of_files if '-cheats' not in os.path.basename(file)]
     if not filtered_files:
         return None
@@ -130,6 +129,7 @@ def find_latest_file(log_directory):
 
 async def watch_log_file(log_directory):
     global current_file, file_position
+    old_line = ""
     while True:
         new_file = find_latest_file(log_directory)
         if new_file != current_file:
@@ -141,7 +141,9 @@ async def watch_log_file(log_directory):
             lines = await file.readlines()
             file_position = await file.tell()
         for line in lines:
-            process_line(line)  # Предполагается, что process_line тоже асинхронная
+            if line != old_line:
+                process_line(line)
+                old_line = line
         await asyncio.sleep(1)
 
 def find_latest_cheat_file(cheat_log_directory):
@@ -154,6 +156,7 @@ def find_latest_cheat_file(cheat_log_directory):
 
 async def watch_cheat_log_file(cheat_log_directory):
     global cheat_current_file, cheat_file_position
+    old_line = ""
     while True:
         new_file = find_latest_cheat_file(cheat_log_directory)
         if new_file != cheat_current_file:
@@ -167,8 +170,9 @@ async def watch_cheat_log_file(cheat_log_directory):
             cheat_file_position = await file.tell()
 
         for line in lines:
-            process_line(line)  # Предполагается, что process_line тоже асинхронная
-
+            if line != old_line:
+                process_line(line)
+                old_line = line
         await asyncio.sleep(1)
 
 def process_line(line):
