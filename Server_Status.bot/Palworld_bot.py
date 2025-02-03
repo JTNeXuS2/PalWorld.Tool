@@ -26,6 +26,15 @@ import random
 import base64
 import aiofiles
 
+#Buffer Limits
+from collections import deque
+MAX_MESSAGES = 14
+TIME_WINDOW = 60
+BUFFER_LIMIT = MAX_MESSAGES // 2  # Половина лимита
+message_buffer = deque()
+send_interval = 0
+shard_count = 3
+
 #cant used
 prefix = '/'
 
@@ -115,12 +124,15 @@ if not os.path.exists(annonce_file):
 
 #bot idents
 intents = disnake.Intents.default()
+intents.messages = True
 intents = disnake.Intents().all()
 client = commands.Bot(command_prefix=prefix, intents=intents, case_insensitive=True)
-bot = commands.Bot(command_prefix=prefix, intents=intents, case_insensitive=True)
+#bot = commands.Bot(command_prefix=prefix, intents=intents, case_insensitive=True)
+bot = commands.AutoShardedBot(command_prefix=prefix, intents=intents, shard_count=shard_count ,case_insensitive=True)
 
 def find_latest_file(log_directory):
     list_of_files = glob.glob(f'{log_directory}*')
+    # Фильтруем список, исключая файлы, имена которых содержат '-cheats'
     filtered_files = [file for file in list_of_files if '-cheats' not in os.path.basename(file)]
     if not filtered_files:
         return None
@@ -180,6 +192,7 @@ def process_line(line):
     chat_pattern = r"\[(.*?)\] \[info\] \[Chat::([^]]+)\]\['([^']+)' \(([^)]+)\)\](\[Admin\])?: (.+)"
     login_pattern = r"^\[(.*?)\] \[info\] \'(.+?)\' \((.*?)\) has logged (in|out)\.?\s*$"
     death_pattern = r"\[(.*?)\] \[info\] '([^']+)' \(([^)]+)\) was attacked by a wild '([^']+)' \(([^)]+)\) and died."
+    helicopter_pattern = r"\[(.*?)\] \[info\] '([^']+)' \(([^)]+)\) has killed the Combat Helicopter at the OilRig(.*)"
 
     # Parse Cheater
     if cheaters and ("*may be* a cheater" in line or "is a cheater! Reason:" in line):
@@ -278,10 +291,39 @@ def process_line(line):
                     uid = value
         # send to webhook
         send_to_discord(f"**{nick}**", f"was attacked by a wild **{enemy}**:{weapon} and died.")
+
+    # Parse Helicopter
+    helicopter_match = re.match(helicopter_pattern, line)
+    if death_send and helicopter_match:
+        timestamp = helicopter_match.group(1)
+        nick = helicopter_match.group(2)
+        platform_info = helicopter_match.group(3)
+        level = helicopter_match.group(4)
+        platform_id = None
+        ip = None
+        uid = None
+        platform_parts = platform_info.split(',')
+        
+        for part in platform_parts:
+            key_value = part.split('=')
+            if len(key_value) > 1:
+                key = key_value[0].strip()
+                value = key_value[1].strip()
+                if key.startswith('Steam') or key.startswith('Xbox') or key.startswith('Mac'):
+                    platform_id = value
+                elif key == 'IP':
+                    ip = value
+                elif key == 'UID':
+                    uid = value
+        # send to webhook
+        send_to_discord(f"**{nick}**", f"has killed the **Combat Helicopter** at the OilRig{level}")
     # END PARSE
     return None
 
 def send_to_discord(nick, message):
+    message_buffer.append((nick, message))
+
+async def send_from_buffer_to_discord(nick, message):
     def escape_markdown(text):
         markdown_chars = ['\\', '*', '_', '~', '`', '>', '|']
         for char in markdown_chars:
@@ -450,6 +492,24 @@ async def auto_annonces(current_index):
     if current_index > len(annonces_list) - 1:
         current_index = 0
     return current_index
+    
+@tasks.loop(seconds=0.1)
+async def message_sender():
+    global send_interval
+    try:
+        #print(f"\rCurrent Buffer Limit: {len(message_buffer)}", end='')
+        await asyncio.sleep(send_interval)
+        if message_buffer:
+            message = message_buffer.popleft()
+            await send_from_buffer_to_discord(*message)
+            if len(message_buffer) > BUFFER_LIMIT:
+                send_interval += 1  # Увеличиваем интервал
+            else:
+                send_interval = max(0, send_interval - 0.1)  # Уменьшаем интервал, не ниже 0.1 секунды
+    except Exception as e:
+        print(f'\nmessage buffer ERROR >>: {e}')
+
+
 
 @tasks.loop(seconds=2)
 async def watch_logs():
@@ -534,7 +594,7 @@ async def update_status():
 
 @bot.event
 async def on_ready():
-    print(f'Logged in as {bot.user}')
+    print(f'Logged in as {bot.user}\nBot Shards: {bot.shard_count}')
     print('Invite bot link to discord (open in browser):\nhttps://discord.com/api/oauth2/authorize?client_id='+ str(bot.user.id) +'&permissions=8&scope=bot\n')
     try:
         await update_avatar_if_needed(bot, bot_name, bot_ava)
@@ -544,6 +604,7 @@ async def on_ready():
     annonces.start()
     watch_logs.start()
     watch_cheat_logs.start()
+    message_sender.start()
 
 @bot.event
 async def on_message(message):
