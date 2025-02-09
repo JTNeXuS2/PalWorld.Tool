@@ -11,6 +11,7 @@
     pip3 install python-a2s
     pip install aiofiles
     pip install requests
+    pip install psutil
     
     enable rest_api on pal-server (add on startup -RESTAPIEnabled=True -RESTAPIPort=8216 -AdminPassword="RCON/ADMIN/API PASSWORD")
 
