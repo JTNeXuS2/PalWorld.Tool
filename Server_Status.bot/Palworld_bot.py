@@ -549,6 +549,7 @@ async def watch_dog():
             await asyncio.sleep(30)
     if failed_checks == 2 and proc is not None:
         print(f'Terminating process: {proc.info["name"]} (PID: {proc.info["pid"]})')
+        send_to_discord(f"[@here] **WachDog**", 'SERVER NOT RESPONE!!! FINISH HIM')
         proc.terminate()
 
 @tasks.loop(seconds=2)
