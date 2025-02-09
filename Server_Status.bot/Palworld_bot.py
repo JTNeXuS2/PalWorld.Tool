@@ -2,6 +2,7 @@
 #py -3 -m pip install -U disnake
 #pip3 install python-a2s
 #pip install aiofiles
+#pip install psutil
 
 import disnake
 from disnake.ext import commands, tasks
@@ -25,6 +26,7 @@ import subprocess
 import random
 import base64
 import aiofiles
+import psutil
 
 #Buffer Limits
 from collections import deque
@@ -115,6 +117,8 @@ cmd_list = []
 cheaters = True
 hide_personal_data = True
 death_send = True
+proc = None
+proc_pid = None
 update_settings()
 
 annonce_file = 'annonces.txt'
@@ -492,7 +496,19 @@ async def auto_annonces(current_index):
     if current_index > len(annonces_list) - 1:
         current_index = 0
     return current_index
-    
+
+async def find_process():
+    process_dir = log_directory.rstrip("\\PalDefender\\logs\\")
+    process_name = "PalServer-Win64-Shipping-Cmd.exe"
+    for proc in psutil.process_iter(['pid', 'name', 'exe', 'cwd']):
+        try:
+            if (proc.info['name'].lower() == process_name.lower() and 
+                proc.info['cwd'].lower() == process_dir.lower()):
+                return proc
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+    return None
+
 @tasks.loop(seconds=0.1)
 async def message_sender():
     global send_interval
@@ -509,7 +525,31 @@ async def message_sender():
     except Exception as e:
         print(f'\nmessage buffer ERROR >>: {e}')
 
+@tasks.loop(seconds=90)
+async def watch_dog():
+    global proc_pid
+    proc = await find_process()
 
+    if proc is not None:
+        if proc_pid is None or proc_pid != proc.info["pid"]:
+            proc_pid = proc.info["pid"]
+            print(f'Watch Dog start at PID: {proc_pid}')
+    else:
+        print("Watch Dog is OFF")
+        return
+    # KILL if not response
+    failed_checks = 0
+    for _ in range(2):
+        try:
+            await request_api(address)
+            break
+        except Exception as e:
+            failed_checks += 1
+            print(f'Watch Dog Server not response {failed_checks}')
+            await asyncio.sleep(30)
+    if failed_checks == 2 and proc is not None:
+        print(f'Terminating process: {proc.info["name"]} (PID: {proc.info["pid"]})')
+        proc.terminate()
 
 @tasks.loop(seconds=2)
 async def watch_logs():
@@ -601,10 +641,11 @@ async def on_ready():
     except Exception as e:
         print(f'update_avatar ERROR >>: {e}')
     update_status.start()
-    annonces.start()
+    watch_dog.start()
     watch_logs.start()
     watch_cheat_logs.start()
     message_sender.start()
+    annonces.start()
 
 @bot.event
 async def on_message(message):
