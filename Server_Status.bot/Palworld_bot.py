@@ -60,7 +60,7 @@ async def write_cfg(section, key, value):
     with open('config.ini', 'w', encoding='utf-8') as configfile:
         config.write(configfile)
 def update_settings():
-    global token, channel_id, crosschat_id, message_id, update_time, bot_name, bot_ava, address, command_prefex, username, password, log_directory, cheat_log_directory, webhook_url, annonce_time, ch_list, cmd_list, cheaters, hide_personal_data, death_send
+    global token, channel_id, crosschat_id, message_id, update_time, bot_name, bot_ava, address, command_prefex, username, password, log_directory, cheat_log_directory, webhook_url, annonce_time, ch_list, cmd_list, cheaters, hide_personal_data, death_send, ingamecmd_list
 
     config = read_cfg()
     if config:
@@ -114,6 +114,7 @@ cheat_file_position = 0
 useonce = None
 ch_list = []
 cmd_list = []
+ingamecmd_list = []
 cheaters = True
 hide_personal_data = True
 death_send = True
@@ -158,7 +159,7 @@ async def watch_log_file(log_directory):
             file_position = await file.tell()
         for line in lines:
             if line != old_line:
-                process_line(line)
+                await process_line(line)
                 old_line = line
         await asyncio.sleep(1)
 
@@ -187,11 +188,27 @@ async def watch_cheat_log_file(cheat_log_directory):
 
         for line in lines:
             if line != old_line:
-                process_line(line)
+                await process_line(line)
                 old_line = line
         await asyncio.sleep(1)
 
-def process_line(line):
+async def cmd_online():
+    info, players, settings, metrics = await request_api(address)
+    if players is None:
+        print("No players found.")
+        return
+
+    players_list = []
+    for player in players['players']:
+        name = player.get('name', '')
+        if not name.strip():
+            name = player.get('accountName', '')
+        players_list.append(name)
+    players_string = ', '.join(players_list)
+    #print(f"{players_string}")
+    await send_annonce(players_string)
+
+async def process_line(line):
     # Parse log string
     chat_pattern = r"\[(.*?)\] \[info\] \[Chat::([^]]+)\]\['([^']+)' \(([^)]+)\)\](\[Admin\])?: (.+)"
     login_pattern = r"^\[(.*?)\] \[info\] \'(.+?)\' \((.*?)\) has logged (in|out)\.?\s*$"
@@ -201,6 +218,11 @@ def process_line(line):
     # Parse Cheater
     if cheaters and ("*may be* a cheater" in line or "is a cheater! Reason:" in line):
         send_to_discord(f"**[WARN] may be a cheater!**", f"```{line}```")
+        return
+
+    # Parse Cheater Change SteamID
+    if cheaters and ("is logging in with different steamid. Old steamid" in line):
+        send_to_discord(f"[@here] **may be a cheater!**", f"```{line}```")
         return
 
     # Parse Chat
@@ -215,7 +237,17 @@ def process_line(line):
         # Dont parse channels not from the list
         if channel and channel.lower() not in [ch.lower() for ch in ch_list]:
             return
-        # Dont parse commands from the list or messages starting with prefix /
+
+        # Parse Chat Commands
+        ingamecmd_list = ['!online']
+        if message and any(message.lower().startswith(cmd.lower()) for cmd in ingamecmd_list):
+            try:
+                await cmd_online()
+            except Exception as e:
+                print(f"cmd_online ERROR: {e}")
+            #return
+
+        # Parse Commands
         if message and any(message.lower().startswith(cmd.lower()) for cmd in cmd_list):
             return
         # HIDE ADMIN PASS
@@ -259,14 +291,17 @@ def process_line(line):
                 if key.startswith('Steam') or key.startswith('Xbox') or key.startswith('Mac') or key == 'Любая платформа':
                     platform_id = value
                 elif key == 'IP':
-                    ip = value
+                    if value != 'Invalid':
+                        ip = f"[{value}]"
+                    else:
+                        ip = ""
                 elif key == 'UID':
                     uid = value
         # send to webhook
         if hide_personal_data:
             message = f"has logged **{action}**."
         else:
-            message = f"[{platform_id}]: has logged **{action}**."
+            message = f"[{platform_id}]{ip}: has logged **{action}**."
         send_to_discord(f"**{nick}**", message)
 
     # Parse death
@@ -549,7 +584,7 @@ async def watch_dog():
             await asyncio.sleep(30)
     if failed_checks == 2 and proc is not None:
         print(f'Terminating process: {proc.info["name"]} (PID: {proc.info["pid"]})')
-        send_to_discord(f"[@here] **WachDog**", 'SERVER NOT RESPONE!!! FINISH HIM')
+        send_to_discord(f"[@here] **WachDog**", 'SERVER NOT RESPONSE!!! FINISH HIM')
         proc.terminate()
 
 @tasks.loop(seconds=2)
