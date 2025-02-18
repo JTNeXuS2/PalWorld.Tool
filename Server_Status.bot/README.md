@@ -3,6 +3,7 @@
     CrossChat - use once {prefex}_lookhere or anonim {prefex}_annonce
     Auto Announcements in annonces.txt 1 string = 1 annonce
     List Players - {prefex}_players
+    WachDog
 ### Requires
     Python 3.8 or higher is required.
 ### install
