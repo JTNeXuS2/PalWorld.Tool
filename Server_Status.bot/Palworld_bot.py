@@ -211,9 +211,16 @@ async def cmd_online():
 async def process_line(line):
     # Parse log string
     chat_pattern = r"\[(.*?)\] \[info\] \[Chat::([^]]+)\]\['([^']+)' \(([^)]+)\)\](\[Admin\])?: (.+)"
+    chat_pattern2 = r"\[(.*?)\]\[info\] \[Chat::([^]]+)\]\['([^']+)' \(([^)]+)\)\](\[Admin\])?: (.+)"
+
     login_pattern = r"^\[(.*?)\] \[info\] \'(.+?)\' \((.*?)\) has logged (in|out)\.?\s*$"
+    login_pattern2 = r"^\[(.*?)\]\[info\] \'(.+?)\' \((.*?)\) has logged (in|out)\.?\s*$"
+
     death_pattern = r"\[(.*?)\] \[info\] '([^']+)' \(([^)]+)\) was attacked by a wild '([^']+)' \(([^)]+)\) and died."
+    death_pattern2 = r"\[(.*?)\]\[info\] '([^']+)' \(([^)]+)\) was attacked by a wild '([^']+)' \(([^)]+)\) and died."
+    
     helicopter_pattern = r"\[(.*?)\] \[info\] '([^']+)' \(([^)]+)\) has killed the Combat Helicopter at the OilRig(.*)"
+    helicopter_pattern2 = r"\[(.*?)\]\[info\] '([^']+)' \(([^)]+)\) has killed the Combat Helicopter at the OilRig(.*)"
 
     # Parse Cheater
     if cheaters and ("*may be* a cheater" in line or "is a cheater! Reason:" in line):
@@ -227,6 +234,9 @@ async def process_line(line):
 
     # Parse Chat
     chat_match = re.match(chat_pattern, line)
+    if not chat_match:
+        chat_match = re.match(chat_pattern2, line)
+
     if chat_match:
         timestamp = chat_match.group(1)
         channel = chat_match.group(2)
@@ -274,6 +284,8 @@ async def process_line(line):
 
     # Parse Log(in/out)
     login_match = re.match(login_pattern, line)
+    if not login_match:
+        login_match = re.match(login_pattern2, line)
     if login_match:
         timestamp = login_match.group(1)
         nick = login_match.group(2)
@@ -306,6 +318,8 @@ async def process_line(line):
 
     # Parse death
     death_match = re.match(death_pattern, line)
+    if not death_match:
+        death_match = re.match(death_pattern2, line)
     if death_send and death_match:
         timestamp = death_match.group(1)
         nick = death_match.group(2)
@@ -333,6 +347,8 @@ async def process_line(line):
 
     # Parse Helicopter
     helicopter_match = re.match(helicopter_pattern, line)
+    if not helicopter_match:
+        helicopter_match = re.match(helicopter_pattern2, line)
     if death_send and helicopter_match:
         timestamp = helicopter_match.group(1)
         nick = helicopter_match.group(2)
