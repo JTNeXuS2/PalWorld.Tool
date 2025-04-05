@@ -300,7 +300,7 @@ async def process_line(line):
             if len(key_value) > 1:
                 key = key_value[0].strip()
                 value = key_value[1].strip()
-                if key.startswith('Steam') or key.startswith('Xbox') or key.startswith('Mac') or key == 'Любая платформа':
+                if key.startswith('Steam') or key.startswith('Xbox') or key.startswith('Mac') or key == 'UserId':
                     platform_id = value
                 elif key == 'IP':
                     if value != 'Invalid':
@@ -551,13 +551,16 @@ async def auto_annonces(current_index):
 async def find_process():
     process_dir = log_directory.rstrip("\\PalDefender\\logs\\")
     process_name = "PalServer-Win64-Shipping-Cmd.exe"
-    for proc in psutil.process_iter(['pid', 'name', 'exe', 'cwd']):
-        try:
-            if (proc.info['name'].lower() == process_name.lower() and 
-                proc.info['cwd'].lower() == process_dir.lower()):
-                return proc
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            continue
+    try:
+        for proc in psutil.process_iter(['pid', 'name', 'exe', 'cwd']):
+            try:
+                if (proc.info['name'].lower() == process_name.lower() and 
+                    proc.info['cwd'].lower() == process_dir.lower()):
+                    return proc
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+    except Exception as e:
+        print(f"An error occurred: {e}")
     return None
 
 @tasks.loop(seconds=0.1)
