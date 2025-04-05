@@ -273,7 +273,7 @@ async def process_line(line):
             if len(key_value) > 1:
                 key = key_value[0].strip()
                 value = key_value[1].strip()
-                if key.startswith('Steam') or key.startswith('Xbox') or key.startswith('Mac'):
+                if key.startswith('Steam') or key.startswith('Xbox') or key.startswith('Mac') or key == 'UserId':
                     platform_id = value
                 elif key == 'IP':
                     ip = value
@@ -336,7 +336,7 @@ async def process_line(line):
             if len(key_value) > 1:
                 key = key_value[0].strip()
                 value = key_value[1].strip()
-                if key.startswith('Steam') or key.startswith('Xbox') or key.startswith('Mac'):
+                if key.startswith('Steam') or key.startswith('Xbox') or key.startswith('Mac') or key == 'UserId':
                     platform_id = value
                 elif key == 'IP':
                     ip = value
@@ -364,7 +364,7 @@ async def process_line(line):
             if len(key_value) > 1:
                 key = key_value[0].strip()
                 value = key_value[1].strip()
-                if key.startswith('Steam') or key.startswith('Xbox') or key.startswith('Mac'):
+                if key.startswith('Steam') or key.startswith('Xbox') or key.startswith('Mac') or key == 'UserId':
                     platform_id = value
                 elif key == 'IP':
                     ip = value
