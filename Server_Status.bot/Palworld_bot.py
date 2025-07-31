@@ -120,6 +120,7 @@ hide_personal_data = True
 death_send = True
 proc = None
 proc_pid = None
+wd_failed_checks = 0
 update_settings()
 
 annonce_file = 'annonces.txt'
@@ -229,7 +230,7 @@ async def process_line(line):
 
     # Parse Cheater Change SteamID
     if cheaters and ("is logging in with different steamid. Old steamid" in line):
-        send_to_discord(f"[@here] **may be a cheater!**", f"```{line}```")
+        send_to_discord(f"**may be a cheater!**", f"```{line}```")
         return
 
     # Parse Chat
@@ -563,6 +564,25 @@ async def find_process():
         print(f"An error occurred: {e}")
     return None
 
+async def watch_dog_main():
+    global wd_failed_checks
+
+    # KILL if not response
+    for _ in range(2):
+        try:
+            await request_api(address)
+            wd_failed_checks = 0
+            break
+        except Exception as e:
+            wd_failed_checks += 1
+            print(f'Watch Dog Server not response {wd_failed_checks}')
+            await asyncio.sleep(30)
+    if wd_failed_checks >= 2 and proc is not None:
+        print(f'Terminating process: {proc.info["name"]} (PID: {proc.info["pid"]})')
+        send_to_discord(f"[@here] **WachDog**", 'SERVER NOT RESPONSE!!! FINISH HIM')
+        proc.terminate()
+        wd_failed_checks = 0
+
 @tasks.loop(seconds=0.1)
 async def message_sender():
     global send_interval
@@ -583,7 +603,6 @@ async def message_sender():
 async def watch_dog():
     global proc_pid
     proc = await find_process()
-
     if proc is not None:
         if proc_pid is None or proc_pid != proc.info["pid"]:
             proc_pid = proc.info["pid"]
@@ -591,20 +610,10 @@ async def watch_dog():
     else:
         print("Watch Dog is OFF")
         return
-    # KILL if not response
-    failed_checks = 0
-    for _ in range(2):
-        try:
-            await request_api(address)
-            break
-        except Exception as e:
-            failed_checks += 1
-            print(f'Watch Dog Server not response {failed_checks}')
-            await asyncio.sleep(30)
-    if failed_checks == 2 and proc is not None:
-        print(f'Terminating process: {proc.info["name"]} (PID: {proc.info["pid"]})')
-        send_to_discord(f"[@here] **WachDog**", 'SERVER NOT RESPONSE!!! FINISH HIM')
-        proc.terminate()
+    try:
+        await watch_dog_main()
+    except Exception as e:
+        print(f'watch_dog ERROR >>: {e}')
 
 @tasks.loop(seconds=2)
 async def watch_logs():
@@ -652,24 +661,28 @@ async def update_status():
             uptime_seconds = metrics["uptime"]
             hours = f"{uptime_seconds // 3600:02}"
             minutes = f"{(uptime_seconds % 3600) // 60:02}"
+            #table_header = f"|{index:<5}|"
             message = (
-                f":earth_africa:Direct Link: **{settings['PublicIP']}:{settings['PublicPort']}**\n"
+                f":earth_africa:Direct Link: **```{settings['PublicIP']}:{settings['PublicPort']}```**\n"
                 f":map: Guid: **{info['worldguid']}**\n"
                 f":green_circle: Online: **{player_count}/{max_players}**\n"
                 f":film_frames: FPS: **{metrics['serverfps']}**\n"
                 f":asterisk: Day: **{metrics['days']}**\n"
                 f":timer: UpTime: **{hours}:{minutes}**\n"
                 f":newspaper: Ver: **{info['version']}**\n"
-                f"============ Server Settings ============\n"
-                f"PVP:      **{settings['bIsPvP']}**\n"
-                f"HardCore: **{settings['bHardcore']}**\n"
-                f"Exp Rate: **{settings['ExpRate']}**\n"
-                f"Drop Loot: **{settings['DeathPenalty']}**\n"
-                f"Lost Pal: **{settings['bPalLost']}**\n"
-                f"Decay Camps: **{settings['AutoResetGuildTimeNoOnlinePlayers']}h**\n"
-                f"Base Camps: **{settings['BaseCampMaxNumInGuild']}**\n"
-                f"Invaders: **{settings['bEnableInvaderEnemy']}**\n"
+                f"============ **Server Settings** ============\n"
+                f"```py\n"
+                f"PVP:            | {settings['bIsPvP']}\n"
+                f"HardCore:       | {settings['bHardcore']}\n"
+                f"Exp Rate:       | {settings['ExpRate']}\n"
+                f"Drop Loot:      | {settings['DeathPenalty']}\n"
+                f"Lost Pal:       | {settings['bPalLost']}\n"
+                f"Decay Camps:    | {settings['AutoResetGuildTimeNoOnlinePlayers']}h\n"
+                f"Base Camps:     | {settings['BaseCampMaxNumInGuild']}\n"
+                f"Invaders:       | {settings['bEnableInvaderEnemy']}\n"
+                f"```"
             )
+
             addition_embed = disnake.Embed(
                 title=f"**{info['servername']}**",
                 colour=disnake.Colour.green(),
@@ -685,7 +698,10 @@ async def update_status():
                 print(f'Failed to fetch channel, message or server data. Maybe try /{command_prefex}_sendhere\n {e}')
         await upd_msg()
     except Exception as e:
-        print(f'Cant connect to server, check ip and query/rest_api port \n ERROR >>: {e}')
+        print(f'Cant connect to server, check ip and query/rest_api port \nStatus ERROR >>: {e}\n')
+        await watch_dog_main()
+
+
 
 @bot.event
 async def on_ready():
