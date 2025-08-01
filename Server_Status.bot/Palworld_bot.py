@@ -565,8 +565,7 @@ async def find_process():
     return None
 
 async def watch_dog_main():
-    global wd_failed_checks
-
+    global proc, wd_failed_checks
     # KILL if not response
     for _ in range(2):
         try:
@@ -601,7 +600,7 @@ async def message_sender():
 
 @tasks.loop(seconds=90)
 async def watch_dog():
-    global proc_pid
+    global proc_pid, proc
     proc = await find_process()
     if proc is not None:
         if proc_pid is None or proc_pid != proc.info["pid"]:
