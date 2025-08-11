@@ -35,7 +35,7 @@ TIME_WINDOW = 60
 BUFFER_LIMIT = MAX_MESSAGES // 2  # Половина лимита
 message_buffer = deque()
 send_interval = 0
-shard_count = 3
+shard_count = 2
 
 #cant used
 prefix = '/'
@@ -429,7 +429,7 @@ async def request_api(address):
                         data = json.loads(response_text)  # Попытка декодировать текст как JSON
                         results.append(data)
                     except json.JSONDecodeError:
-                        print("Ошибка декодирования JSON. Полученные данные не являются корректным JSON.")
+                        print("Error JSONDecodeError: ")
                         results.append(response_text)
                 else:
                     print(f"Ошибка при запросе {url}: {response.status}")
@@ -443,7 +443,8 @@ async def get_info_restapi(address):
         info, players, settings, metrics = await request_api(address)
         return info, players, settings, metrics
     except Exception as e:
-        print(f"Произошла ошибка: {e}")
+        #print(f"Error get_info_restapi: {e}")
+        #print(f"ERROR get_info_restapi: check ip/port or server not be work")
         channel = await bot.fetch_channel(channel_id)
         message = await channel.fetch_message(message_id)
         embed = disnake.Embed(
@@ -561,11 +562,20 @@ async def find_process():
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
     except Exception as e:
-        print(f"An error occurred: {e}")
+        print(f"Error find_process: {e}")
     return None
 
 async def watch_dog_main():
-    global proc, wd_failed_checks
+    global proc, proc_pid, wd_failed_checks
+    proc = await find_process()
+    if proc is not None:
+        if proc_pid is None or proc_pid != proc.info["pid"]:
+            proc_pid = proc.info["pid"]
+            print(f'Watch Dog start at PID: {proc_pid}')
+    else:
+        print("Watch Dog is OFF")
+        return
+
     # KILL if not response
     for _ in range(2):
         try:
@@ -576,10 +586,14 @@ async def watch_dog_main():
             wd_failed_checks += 1
             print(f'Watch Dog Server not response {wd_failed_checks}')
             await asyncio.sleep(30)
-    if wd_failed_checks >= 2 and proc is not None:
-        print(f'Terminating process: {proc.info["name"]} (PID: {proc.info["pid"]})')
+    if wd_failed_checks >= 3 and proc is not None:
+        current_time = datetime.datetime.now().strftime("[%H:%M:%S-%d.%m.%Y]")
+        print(f'WachDog Terminating process {current_time}: {proc.info["name"]} (PID: {proc.info["pid"]})')
         send_to_discord(f"[@here] **WachDog**", 'SERVER NOT RESPONSE!!! FINISH HIM')
-        proc.terminate()
+        try:
+            proc.terminate()
+        except Exception as e:
+            print(f'Not found terminate proc PID: {proc_pid}')
         wd_failed_checks = 0
 
 @tasks.loop(seconds=0.1)
@@ -598,7 +612,7 @@ async def message_sender():
     except Exception as e:
         print(f'\nmessage buffer ERROR >>: {e}')
 
-@tasks.loop(seconds=90)
+@tasks.loop(seconds=10)
 async def watch_dog():
     global proc_pid, proc
     proc = await find_process()
@@ -612,7 +626,7 @@ async def watch_dog():
     try:
         await watch_dog_main()
     except Exception as e:
-        print(f'watch_dog ERROR >>: {e}')
+        print(f'ERROR watch_dog >>: {e}')
 
 @tasks.loop(seconds=2)
 async def watch_logs():
@@ -621,10 +635,10 @@ async def watch_logs():
         current_file = find_latest_file(log_directory)
         if current_file:
             file_position = os.path.getsize(current_file)
-            print(f"watch log start at {current_file}")
+            print(f"Watch Log start at {current_file}")
             await watch_log_file(log_directory)
     except Exception as e:
-        print(f'watch log ERROR >>: {e}')
+        print(f'ERROR watch_logs >>: {e}')
 
 @tasks.loop(seconds=2)
 async def watch_cheat_logs():
@@ -633,10 +647,10 @@ async def watch_cheat_logs():
         cheat_current_file = find_latest_cheat_file(cheat_log_directory)
         if cheat_current_file:
             cheat_file_position = os.path.getsize(cheat_current_file)
-            print(f"watch cheat_log start at {cheat_current_file}")
+            print(f"Watch CheatLog start at {cheat_current_file}")
             await watch_cheat_log_file(cheat_log_directory)
     except Exception as e:
-        print(f'watch cheat_log ERROR >>: {e}')
+        print(f'ERROR watch_cheat_logs >>: {e}')
 
 @tasks.loop(seconds=int(annonce_time))
 async def annonces():
@@ -646,12 +660,14 @@ async def annonces():
 @tasks.loop(seconds=int(update_time))
 async def update_status():
     try:
-        info, players, settings, metrics = await get_info_restapi(address)
-        player_count = metrics["currentplayernum"]
-        max_players = metrics["maxplayernum"]
-        activity = disnake.Game(name=f"Online:{player_count}/{max_players}")
-        await bot.change_presence(status=disnake.Status.online, activity=activity)
+        try:
+            info, players, settings, metrics = await get_info_restapi(address)
+            player_count = metrics["currentplayernum"]
+            max_players = metrics["maxplayernum"]
+        except Exception as e:
+            print(f'ERROR update_status: server no respone to fill info, players, settings, metrics')
 
+        await bot.change_presence(status=disnake.Status.online, activity = disnake.Game(name=f"Online:{player_count}/{max_players}"))
         if bot.user.name != bot_name:
             await bot.user.edit(username=bot_name)
 
@@ -690,14 +706,18 @@ async def update_status():
             try:
                 channel = await bot.fetch_channel(channel_id)
                 message = await channel.fetch_message(message_id)
-
                 if message:
                     await message.edit(content=f'Last update: {datetime.datetime.now().strftime("%H:%M")}', embed=addition_embed)
             except Exception as e:
                 print(f'Failed to fetch channel, message or server data. Maybe try /{command_prefex}_sendhere\n {e}')
-        await upd_msg()
+        # formating status message
+        try:
+            await upd_msg()
+        except Exception as e:
+            #print(f'ERROR upd_msg: Cant connect to server >>: {e}')
+            pass
     except Exception as e:
-        print(f'Cant connect to server, check ip and query/rest_api port \nStatus ERROR >>: {e}\n')
+        print(f'ERROR update_status: Cant connect to server, check ip/port/server be work >>: {e}\n')
         await watch_dog_main()
 
 
@@ -709,7 +729,7 @@ async def on_ready():
     try:
         await update_avatar_if_needed(bot, bot_name, bot_ava)
     except Exception as e:
-        print(f'update_avatar ERROR >>: {e}')
+        print(f'ERROR update_avatar: >>: {e}')
     update_status.start()
     watch_dog.start()
     watch_logs.start()
@@ -719,12 +739,12 @@ async def on_ready():
 
 @bot.event
 async def on_message(message):
+    if str(message.channel.id) != crosschat_id:
+        return
     if message.author == client.user:		#отсеим свои сообщения
         return;
     if message.author.bot:
         return;
-    if str(message.channel.id) != crosschat_id:
-        return
     if message.content.startswith(''):
         text = ''
         text = f'{message.author.global_name}: { message.content}'
