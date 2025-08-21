@@ -41,6 +41,8 @@ shard_count = 2
 prefix = '/'
 
 #Nothing change more
+def gettime(format):
+    return datetime.datetime.now().strftime(f"{format}")
 
 def read_cfg():
     config = configparser.ConfigParser(interpolation=None)
@@ -152,7 +154,7 @@ async def watch_log_file(log_directory):
         new_file = find_latest_file(log_directory)
         if new_file != current_file:
             current_file = new_file
-            print(f"watch log start at {current_file}")
+            print(f"{gettime("[%H:%M:%S-%d.%m.%Y]")} Watch log at {current_file}")
             file_position = 0
         async with aiofiles.open(current_file, 'r', encoding='utf-8') as file:
             await file.seek(file_position)
@@ -179,7 +181,7 @@ async def watch_cheat_log_file(cheat_log_directory):
         new_file = find_latest_cheat_file(cheat_log_directory)
         if new_file != cheat_current_file:
             cheat_current_file = new_file
-            print(f"watch cheat_log start at {cheat_current_file}")
+            print(f"{gettime("[%H:%M:%S-%d.%m.%Y]")} Watch cheat_log at {cheat_current_file}")
             cheat_file_position = 0
 
         async with aiofiles.open(cheat_current_file, 'r', encoding='utf-8') as file:
@@ -398,7 +400,7 @@ async def send_from_buffer_to_discord(nick, message):
     data = {"content": message}
     response = requests.post(webhook_url, json=data)
     if response.status_code != 204:
-        print(f"Error sending message to Discord: {response.status_code} - {response.text}")
+        print(f"{gettime("[%H:%M:%S-%d.%m.%Y]")} Error sending message to Discord: {response.status_code} - {response.text}")
 
 
 async def request_api(address):
@@ -496,10 +498,10 @@ async def update_avatar_if_needed(bot, bot_name, bot_ava):
             response = requests.get(bot_ava)
             response.raise_for_status()  # Проверка на ошибки HTTP
             data = response.content
-            print("Avatar data retrieved successfully.")
+            print(f"{gettime("[%H:%M:%S-%d.%m.%Y]")} Avatar data retrieved successfully.")
             await bot.user.edit(avatar=data)
         except requests.exceptions.RequestException as e:
-            print(f"Error fetching avatar: {e}")
+            print(f"{gettime("[%H:%M:%S-%d.%m.%Y]")} Error fetching avatar: {e}")
 
 async def send_annonce(text):
     send_url = f"http://{address[0]}:{address[2]}/v1/api/announce"
@@ -522,12 +524,12 @@ async def send_annonce(text):
                 payload = json.dumps({"message": message})
                 async with session.post(send_url, headers=headers, data=payload) as response:
                     if response.status != 200:
-                        print(f"Failed annonce status: code {response.status}")
+                        print(f"{gettime("[%H:%M:%S-%d.%m.%Y]")} Failed annonce status: code {response.status}")
                         return response.status
         #print("Annonce sent successfully.")
         return True
     except Exception as e:
-        print(f"Error sending message via REST API: {e}")
+        print(f"{gettime("[%H:%M:%S-%d.%m.%Y]")} Error sending message via REST API: {e}")
         return False
 
 async def auto_annonces(current_index):
@@ -543,7 +545,7 @@ async def auto_annonces(current_index):
         pass
     if annonces_list:
         text = annonces_list.get(current_index, '')
-        print(f'Annonsing: {text}')
+        print(f'{gettime("[%H:%M:%S-%d.%m.%Y]")} Annonsing: {text}')
         await send_annonce(text)
         current_index += 1
     if current_index > len(annonces_list) - 1:
@@ -562,7 +564,7 @@ async def find_process():
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
     except Exception as e:
-        print(f"Error find_process: {e}")
+        print(f"{gettime("[%H:%M:%S-%d.%m.%Y]")} Error find_process: {e}")
     return None
 
 async def watch_dog_main():
@@ -571,9 +573,9 @@ async def watch_dog_main():
     if proc is not None:
         if proc_pid is None or proc_pid != proc.info["pid"]:
             proc_pid = proc.info["pid"]
-            print(f'Watch Dog start at PID: {proc_pid}')
+            print(f'{gettime("[%H:%M:%S-%d.%m.%Y]")} Watch Dog at PID: {proc_pid}')
     else:
-        print("Watch Dog is OFF")
+        print(f"Watch Dog is OFF or process not found")
         return
 
     # KILL if not response
@@ -584,16 +586,15 @@ async def watch_dog_main():
             break
         except Exception as e:
             wd_failed_checks += 1
-            print(f'Watch Dog Server not response {wd_failed_checks}')
+            print(f'{gettime("[%H:%M:%S-%d.%m.%Y]")} Watch Dog Server not response {wd_failed_checks}')
             await asyncio.sleep(30)
     if wd_failed_checks >= 3 and proc is not None:
-        current_time = datetime.datetime.now().strftime("[%H:%M:%S-%d.%m.%Y]")
-        print(f'WachDog Terminating process {current_time}: {proc.info["name"]} (PID: {proc.info["pid"]})')
+        print(f'WachDog Terminating process {gettime("[%H:%M:%S-%d.%m.%Y]")}: {proc.info["name"]} (PID: {proc.info["pid"]})')
         send_to_discord(f"[@here] **WachDog**", 'SERVER NOT RESPONSE!!! FINISH HIM')
         try:
             proc.terminate()
         except Exception as e:
-            print(f'Not found terminate proc PID: {proc_pid}')
+            print(f'{gettime("[%H:%M:%S-%d.%m.%Y]")} Not found terminate proc PID: {proc_pid}')
         wd_failed_checks = 0
 
 @tasks.loop(seconds=0.1)
@@ -619,14 +620,14 @@ async def watch_dog():
     if proc is not None:
         if proc_pid is None or proc_pid != proc.info["pid"]:
             proc_pid = proc.info["pid"]
-            print(f'Watch Dog start at PID: {proc_pid}')
+            print(f'{gettime("[%H:%M:%S-%d.%m.%Y]")} Watch Dog start at PID: {proc_pid}')
     else:
-        print("Watch Dog is OFF")
+        print(f"{gettime("[%H:%M:%S-%d.%m.%Y]")} Watch Dog is OFF")
         return
     try:
         await watch_dog_main()
     except Exception as e:
-        print(f'ERROR watch_dog >>: {e}')
+        print(f'{gettime("[%H:%M:%S-%d.%m.%Y]")} ERROR watch_dog >>: {e}')
 
 @tasks.loop(seconds=2)
 async def watch_logs():
@@ -635,10 +636,10 @@ async def watch_logs():
         current_file = find_latest_file(log_directory)
         if current_file:
             file_position = os.path.getsize(current_file)
-            print(f"Watch Log start at {current_file}")
+            print(f"{gettime("[%H:%M:%S-%d.%m.%Y]")} Watch Log at {current_file}")
             await watch_log_file(log_directory)
     except Exception as e:
-        print(f'ERROR watch_logs >>: {e}')
+        print(f'{gettime("[%H:%M:%S-%d.%m.%Y]")} ERROR watch_logs >>: {e}')
 
 @tasks.loop(seconds=2)
 async def watch_cheat_logs():
@@ -647,10 +648,10 @@ async def watch_cheat_logs():
         cheat_current_file = find_latest_cheat_file(cheat_log_directory)
         if cheat_current_file:
             cheat_file_position = os.path.getsize(cheat_current_file)
-            print(f"Watch CheatLog start at {cheat_current_file}")
+            print(f"{gettime("[%H:%M:%S-%d.%m.%Y]")} Watch CheatLog at {cheat_current_file}")
             await watch_cheat_log_file(cheat_log_directory)
     except Exception as e:
-        print(f'ERROR watch_cheat_logs >>: {e}')
+        print(f'{gettime("[%H:%M:%S-%d.%m.%Y]")} ERROR watch_cheat_logs >>: {e}')
 
 @tasks.loop(seconds=int(annonce_time))
 async def annonces():
@@ -660,12 +661,14 @@ async def annonces():
 @tasks.loop(seconds=int(update_time))
 async def update_status():
     try:
+        player_count = "-"
+        max_players = "-"
         try:
             info, players, settings, metrics = await get_info_restapi(address)
             player_count = metrics["currentplayernum"]
             max_players = metrics["maxplayernum"]
         except Exception as e:
-            print(f'ERROR update_status: server no respone to fill info, players, settings, metrics')
+            print(f'{gettime("[%H:%M:%S-%d.%m.%Y]")} ERROR update_status: server no respone to fill info, players, settings, metrics')
 
         await bot.change_presence(status=disnake.Status.online, activity = disnake.Game(name=f"Online:{player_count}/{max_players}"))
         if bot.user.name != bot_name:
@@ -717,15 +720,15 @@ async def update_status():
             #print(f'ERROR upd_msg: Cant connect to server >>: {e}')
             pass
     except Exception as e:
-        print(f'ERROR update_status: Cant connect to server, check ip/port/server be work >>: {e}\n')
+        print(f'{gettime("[%H:%M:%S-%d.%m.%Y]")} ERROR update_status: Cant connect to server, check ip/port/server be work >>: {e}\n')
         await watch_dog_main()
 
 
 
 @bot.event
 async def on_ready():
-    print(f'Logged in as {bot.user}\nBot Shards: {bot.shard_count}')
-    print('Invite bot link to discord (open in browser):\nhttps://discord.com/api/oauth2/authorize?client_id='+ str(bot.user.id) +'&permissions=8&scope=bot\n')
+    print(f'{gettime("[%H:%M:%S-%d.%m.%Y]")} Logged in as {bot.user}\nBot Shards: {bot.shard_count}')
+    print(f'{gettime("[%H:%M:%S-%d.%m.%Y]")} Invite bot link to discord (open in browser):\nhttps://discord.com/api/oauth2/authorize?client_id='+ str(bot.user.id) +'&permissions=8&scope=bot\n')
     try:
         await update_avatar_if_needed(bot, bot_name, bot_ava)
     except Exception as e:
