@@ -661,14 +661,15 @@ async def annonces():
 @tasks.loop(seconds=int(update_time))
 async def update_status():
     try:
-        player_count = "-"
-        max_players = "-"
         try:
             info, players, settings, metrics = await get_info_restapi(address)
             player_count = metrics["currentplayernum"]
             max_players = metrics["maxplayernum"]
         except Exception as e:
             print(f'{gettime("[%H:%M:%S-%d.%m.%Y]")} ERROR update_status: server no respone to fill info, players, settings, metrics')
+            player_count = "-"
+            max_players = "-"
+            await watch_dog_main()
 
         await bot.change_presence(status=disnake.Status.online, activity = disnake.Game(name=f"Online:{player_count}/{max_players}"))
         if bot.user.name != bot_name:
